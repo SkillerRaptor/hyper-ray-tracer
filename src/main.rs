@@ -5,6 +5,7 @@
  */
 
 mod application;
+mod camera;
 mod hit_record;
 mod hittable;
 mod ray;

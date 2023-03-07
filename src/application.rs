@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-use crate::{hit_record::HitRecord, hittable::Hittable, ray::Ray};
+use crate::{camera::Camera, hit_record::HitRecord, hittable::Hittable, ray::Ray};
 
 use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
+use rand::Rng;
 use std::{sync::mpsc::Receiver, time::Instant};
 
 pub(crate) struct Application {
@@ -20,10 +21,13 @@ pub(crate) struct Application {
     screen_framebuffer: u32,
     pixels: Vec<Vector4<f32>>,
 
+    camera: Camera,
     world: Hittable,
 }
 
 impl Application {
+    const SAMPLES_PER_PIXEL: u32 = 100;
+
     pub(crate) fn new() -> Self {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
         glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
@@ -80,6 +84,7 @@ impl Application {
             screen_texture,
             screen_framebuffer,
             pixels: Vec::new(),
+            camera: Camera::new(current_window_size.0, current_window_size.1),
             world: Hittable::List { objects },
         };
 
@@ -167,12 +172,19 @@ impl Application {
         self.window_size = Vector2::new(width, height);
         self.texture_size = Vector2::new(width, height);
 
+        self.camera.resize(width, height);
+
         self.pixels.resize(
             (self.texture_size.x * self.texture_size.y) as usize,
             Vector4::new(0.0, 0.0, 0.0, 0.0),
         );
 
+        let start = Instant::now();
+
         self.render();
+
+        let duration = start.elapsed();
+        println!("Rendered frame in {:?}", duration);
     }
 
     fn write_pixel(&mut self, x: u32, y: u32, color: Vector4<f32>) {
@@ -180,30 +192,28 @@ impl Application {
     }
 
     fn render(&mut self) {
-        let aspect_ratio = self.texture_size.x as f32 / self.texture_size.y as f32;
-
-        let viewport_height = 2.0;
-        let viewport_width = aspect_ratio * viewport_height;
-        let focal_length = 1.0;
-
-        let origin = Vector3::new(0.0, 0.0, 0.0);
-        let horizontal = Vector3::new(viewport_width, 0.0, 0.0);
-        let vertical = Vector3::new(0.0, viewport_height, 0.0);
-        let lower_left_corner =
-            origin - horizontal / 2.0 - vertical / 2.0 - Vector3::new(0.0, 0.0, focal_length);
+        let scale = 1.0 / Self::SAMPLES_PER_PIXEL as f32;
+        let mut rand = rand::thread_rng();
 
         for y in 0..self.texture_size.y as u32 {
             for x in 0..self.texture_size.x as u32 {
-                let u = x as f32 / (self.texture_size.x as f32 - 1.0);
-                let v = y as f32 / (self.texture_size.y as f32 - 1.0);
+                let mut pixel_color = Vector3::new(0.0, 0.0, 0.0);
 
-                let ray = Ray::new(
-                    origin,
-                    lower_left_corner + u * horizontal + v * vertical - origin,
+                for _ in 0..Self::SAMPLES_PER_PIXEL {
+                    let u = (x as f32 + rand.gen::<f32>()) / (self.texture_size.x as f32 - 1.0);
+                    let v = (y as f32 + rand.gen::<f32>()) / (self.texture_size.y as f32 - 1.0);
+
+                    let ray = self.camera.get_ray(u, v);
+                    pixel_color += Self::ray_color(&ray, &self.world);
+                }
+
+                pixel_color *= scale;
+
+                self.write_pixel(
+                    x,
+                    y,
+                    Vector4::new(pixel_color.x, pixel_color.y, pixel_color.z, 1.0),
                 );
-                let color = Self::ray_color(&ray, &self.world);
-
-                self.write_pixel(x, y, Vector4::new(color.x, color.y, color.z, 1.0));
             }
         }
     }
