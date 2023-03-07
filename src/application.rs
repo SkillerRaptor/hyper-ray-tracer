@@ -67,58 +67,22 @@ impl Application {
             );
         }
 
-        let mut objects = Vec::new();
-        objects.push(Hittable::Sphere {
-            center: Vector3::new(0.0, -100.5, -1.0),
-            radius: 100.0,
-            material: Material::Lambertian {
-                albedo: Vector3::new(0.8, 0.8, 0.0),
-            },
-        });
-        objects.push(Hittable::Sphere {
-            center: Vector3::new(0.0, 0.0, -1.0),
-            radius: 0.5,
-            material: Material::Lambertian {
-                albedo: Vector3::new(0.1, 0.2, 0.5),
-            },
-        });
-        objects.push(Hittable::Sphere {
-            center: Vector3::new(-1.0, 0.0, -1.0),
-            radius: 0.5,
-            material: Material::Dielectric {
-                index_of_referaction: 1.5,
-            },
-        });
-        objects.push(Hittable::Sphere {
-            center: Vector3::new(-1.0, 0.0, -1.0),
-            radius: -0.4,
-            material: Material::Dielectric {
-                index_of_referaction: 1.5,
-            },
-        });
-        objects.push(Hittable::Sphere {
-            center: Vector3::new(1.0, 0.0, -1.0),
-            radius: 0.5,
-            material: Material::Metal {
-                albedo: Vector3::new(0.8, 0.6, 0.2),
-                fuzz: 0.0,
-            },
-        });
-
         let current_window_size = window.get_size();
 
-        let look_from = Vector3::new(3.0, 3.0, 2.0);
-        let look_at = Vector3::new(0.0, 0.0, -1.0);
+        let look_from = Vector3::new(13.0, 2.0, 3.0);
+        let look_at = Vector3::new(0.0, 0.0, 0.0);
 
         let camera = Camera::new(
             look_from,
             look_at,
             20.0,
-            2.0,
-            (look_from - look_at).magnitude(),
+            0.1,
+            10.0,
             current_window_size.0,
             current_window_size.1,
         );
+
+        let world = Self::generate_random_scene();
 
         let mut application = Self {
             glfw,
@@ -130,7 +94,7 @@ impl Application {
             screen_framebuffer,
             pixels: Vec::new(),
             camera,
-            world: Hittable::List { objects },
+            world,
         };
 
         application.handle_resize(current_window_size.0, current_window_size.1);
@@ -287,5 +251,89 @@ impl Application {
         let unit_direction = ray.direction().normalize();
         let t = 0.5 * (unit_direction.y + 1.0);
         (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
+    }
+
+    fn generate_random_scene() -> Hittable {
+        let mut objects = Vec::new();
+
+        let ground_material = Material::Lambertian {
+            albedo: Vector3::new(0.5, 0.5, 0.5),
+        };
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(0.0, -1000.0, 0.0),
+            radius: 1000.0,
+            material: ground_material,
+        });
+
+        let mut rand = rand::thread_rng();
+        for a in -11..11 {
+            for b in -11..11 {
+                let choose_material = rand.gen::<f32>();
+
+                let center = Vector3::new(
+                    a as f32 + 0.9 * rand.gen::<f32>(),
+                    0.2,
+                    b as f32 + 0.9 * rand.gen::<f32>(),
+                );
+
+                if (center - Vector3::new(4.0, 0.2, 0.0)).magnitude() > 0.9 {
+                    let sphere = if choose_material < 0.8 {
+                        let albedo = Vector3::new(rand.gen(), rand.gen(), rand.gen());
+                        Hittable::Sphere {
+                            center,
+                            radius: 0.2,
+                            material: Material::Lambertian { albedo },
+                        }
+                    } else if choose_material < 0.95 {
+                        let albedo = Vector3::new(
+                            rand.gen_range(0.5..1.0),
+                            rand.gen_range(0.5..1.0),
+                            rand.gen_range(0.5..1.0),
+                        );
+                        let fuzz = rand.gen_range(0.0..0.5);
+                        Hittable::Sphere {
+                            center,
+                            radius: 0.2,
+                            material: Material::Metal { albedo, fuzz },
+                        }
+                    } else {
+                        Hittable::Sphere {
+                            center,
+                            radius: 0.2,
+                            material: Material::Dielectric {
+                                index_of_referaction: 1.5,
+                            },
+                        }
+                    };
+
+                    objects.push(sphere);
+                }
+            }
+        }
+
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(0.0, 1.0, 0.0),
+            radius: 1.0,
+            material: Material::Dielectric {
+                index_of_referaction: 1.5,
+            },
+        });
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(-4.0, 1.0, 0.0),
+            radius: 1.0,
+            material: Material::Lambertian {
+                albedo: Vector3::new(0.4, 0.2, 0.1),
+            },
+        });
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(4.0, 1.0, 0.0),
+            radius: 1.0,
+            material: Material::Metal {
+                albedo: Vector3::new(0.7, 0.6, 0.5),
+                fuzz: 0.0,
+            },
+        });
+
+        Hittable::List { objects }
     }
 }
