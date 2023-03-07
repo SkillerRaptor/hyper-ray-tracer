@@ -79,15 +79,21 @@ impl Application {
             center: Vector3::new(0.0, 0.0, -1.0),
             radius: 0.5,
             material: Material::Lambertian {
-                albedo: Vector3::new(0.7, 0.3, 0.3),
+                albedo: Vector3::new(0.1, 0.2, 0.5),
             },
         });
         objects.push(Hittable::Sphere {
             center: Vector3::new(-1.0, 0.0, -1.0),
             radius: 0.5,
-            material: Material::Metal {
-                albedo: Vector3::new(0.8, 0.8, 0.8),
-                fuzz: 0.3,
+            material: Material::Dielectric {
+                index_of_referaction: 1.5,
+            },
+        });
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(-1.0, 0.0, -1.0),
+            radius: -0.4,
+            material: Material::Dielectric {
+                index_of_referaction: 1.5,
             },
         });
         objects.push(Hittable::Sphere {
@@ -95,7 +101,7 @@ impl Application {
             radius: 0.5,
             material: Material::Metal {
                 albedo: Vector3::new(0.8, 0.6, 0.2),
-                fuzz: 1.0,
+                fuzz: 0.0,
             },
         });
 
