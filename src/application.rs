@@ -4,14 +4,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+use crate::{hit_record::HitRecord, hittable::Hittable, ray::Ray};
+
 use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
 use std::{sync::mpsc::Receiver, time::Instant};
-
-use crate::{
-    hit_record::HitRecord, hittable::Hittable, hittable_list::HittableList, ray::Ray,
-    sphere::Sphere,
-};
 
 pub(crate) struct Application {
     glfw: Glfw,
@@ -23,7 +20,7 @@ pub(crate) struct Application {
     screen_framebuffer: u32,
     pixels: Vec<Vector4<f32>>,
 
-    world: HittableList,
+    world: Hittable,
 }
 
 impl Application {
@@ -62,12 +59,15 @@ impl Application {
             );
         }
 
-        let mut world = HittableList::new();
-        world.add(Box::new(Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5)));
-        world.add(Box::new(Sphere::new(
-            Vector3::new(0.0, -100.5, -1.0),
-            100.0,
-        )));
+        let mut objects = Vec::new();
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(0.0, 0.0, -1.0),
+            radius: 0.5,
+        });
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(0.0, -100.5, -1.0),
+            radius: 100.0,
+        });
 
         let current_window_size = window.get_size();
 
@@ -80,7 +80,7 @@ impl Application {
             screen_texture,
             screen_framebuffer,
             pixels: Vec::new(),
-            world,
+            world: Hittable::List { objects },
         };
 
         application.handle_resize(current_window_size.0, current_window_size.1);
@@ -208,7 +208,7 @@ impl Application {
         }
     }
 
-    fn ray_color(ray: &Ray, world: &dyn Hittable) -> Vector3<f32> {
+    fn ray_color(ray: &Ray, world: &Hittable) -> Vector3<f32> {
         let mut hit_record = HitRecord::default();
         if world.hit(ray, 0.0, f32::INFINITY, &mut hit_record) {
             return 0.5 * (hit_record.normal + Vector3::new(1.0, 1.0, 1.0));
