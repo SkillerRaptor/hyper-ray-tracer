@@ -6,7 +6,7 @@
 
 use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
-use std::sync::mpsc::Receiver;
+use std::{sync::mpsc::Receiver, time::Instant};
 
 use crate::{
     hit_record::HitRecord, hittable::Hittable, hittable_list::HittableList, ray::Ray,
@@ -89,7 +89,18 @@ impl Application {
     }
 
     pub(crate) fn run(&mut self) {
+        let mut last_frame = Instant::now();
         while !self.window.should_close() {
+            let current_frame = Instant::now();
+            let delta_time = current_frame - last_frame;
+            last_frame = current_frame;
+
+            self.window.set_title(&format!(
+                "Hyper-Ray-Tracer ({:.0} fps / {:.2})",
+                1.0 / delta_time.as_secs_f32(),
+                delta_time.as_secs_f32()
+            ));
+
             self.process_events();
 
             unsafe {
