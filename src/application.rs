@@ -9,7 +9,8 @@ use crate::{camera::Camera, hit_record::HitRecord, hittable::Hittable, ray::Ray}
 use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
 use rand::{distributions::Uniform, prelude::Distribution, Rng};
-use std::{io::Write, sync::mpsc::Receiver, time::Instant};
+use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use std::{sync::mpsc::Receiver, time::Instant};
 
 pub(crate) struct Application {
     glfw: Glfw,
@@ -188,16 +189,16 @@ impl Application {
         println!("Rendered frame in {:?}", duration);
     }
 
-    fn write_pixel(&mut self, x: u32, y: u32, color: Vector4<f32>) {
-        self.pixels[(y * self.texture_size.x as u32 + x) as usize] = color;
-    }
-
     fn render(&mut self) {
         let scale = 1.0 / Self::SAMPLES_PER_PIXEL as f32;
-        let mut rand = rand::thread_rng();
 
-        for y in 0..self.texture_size.y as u32 {
-            for x in 0..self.texture_size.x as u32 {
+        self.pixels
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(index, pixel)| {
+                let mut rand = rand::thread_rng();
+                let x = index % self.texture_size.x as usize;
+                let y = index / self.texture_size.x as usize;
                 let mut pixel_color = Vector3::new(0.0, 0.0, 0.0);
 
                 for _ in 0..Self::SAMPLES_PER_PIXEL {
@@ -212,13 +213,8 @@ impl Application {
                 pixel_color.y = (pixel_color.y * scale).sqrt();
                 pixel_color.z = (pixel_color.z * scale).sqrt();
 
-                self.write_pixel(
-                    x,
-                    y,
-                    Vector4::new(pixel_color.x, pixel_color.y, pixel_color.z, 1.0),
-                );
-            }
-        }
+                *pixel = Vector4::new(pixel_color.x, pixel_color.y, pixel_color.z, 1.0);
+            });
     }
 
     fn ray_color(ray: &Ray, world: &Hittable, depth: u32) -> Vector3<f32> {
@@ -262,3 +258,10 @@ impl Application {
         }
     }
 }
+/*
+Rendered frame in 11.4938627s
+Rendered frame in 24.5980178s
+
+Rendered frame in 1.6378512s
+Rendered frame in 3.1428274s
+ */
