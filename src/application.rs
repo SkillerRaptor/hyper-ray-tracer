@@ -107,6 +107,19 @@ impl Application {
 
         let current_window_size = window.get_size();
 
+        let look_from = Vector3::new(3.0, 3.0, 2.0);
+        let look_at = Vector3::new(0.0, 0.0, -1.0);
+
+        let camera = Camera::new(
+            look_from,
+            look_at,
+            20.0,
+            2.0,
+            (look_from - look_at).magnitude(),
+            current_window_size.0,
+            current_window_size.1,
+        );
+
         let mut application = Self {
             glfw,
             window,
@@ -116,7 +129,7 @@ impl Application {
             screen_texture,
             screen_framebuffer,
             pixels: Vec::new(),
-            camera: Camera::new(current_window_size.0, current_window_size.1),
+            camera,
             world: Hittable::List { objects },
         };
 
