@@ -5,6 +5,7 @@
  */
 
 mod application;
+mod ray;
 
 use application::Application;
 

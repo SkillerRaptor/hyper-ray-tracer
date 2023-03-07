@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-use cgmath::{Vector2, Vector4};
+use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
 use std::sync::mpsc::Receiver;
+
+use crate::ray::Ray;
 
 pub(crate) struct Application {
     glfw: Glfw,
@@ -146,15 +148,64 @@ impl Application {
             Vector4::new(0.0, 0.0, 0.0, 0.0),
         );
 
-        for y in 0..self.texture_size.y {
-            for x in 0..self.texture_size.x {
-                self.pixels[(y * self.texture_size.x + x) as usize] = Vector4::new(
-                    x as f32 / (self.texture_size.x as f32 - 1.0),
-                    y as f32 / (self.texture_size.y as f32 - 1.0),
-                    0.0,
-                    1.0,
+        self.render();
+    }
+
+    fn write_pixel(&mut self, x: u32, y: u32, color: Vector4<f32>) {
+        self.pixels[(y * self.texture_size.x as u32 + x) as usize] = color;
+    }
+
+    fn render(&mut self) {
+        let aspect_ratio = self.texture_size.x as f32 / self.texture_size.y as f32;
+
+        let viewport_height = 2.0;
+        let viewport_width = aspect_ratio * viewport_height;
+        let focal_length = 1.0;
+
+        let origin = Vector3::new(0.0, 0.0, 0.0);
+        let horizontal = Vector3::new(viewport_width, 0.0, 0.0);
+        let vertical = Vector3::new(0.0, viewport_height, 0.0);
+        let lower_left_corner =
+            origin - horizontal / 2.0 - vertical / 2.0 - Vector3::new(0.0, 0.0, focal_length);
+
+        for y in 0..self.texture_size.y as u32 {
+            for x in 0..self.texture_size.x as u32 {
+                let u = x as f32 / (self.texture_size.x as f32 - 1.0);
+                let v = y as f32 / (self.texture_size.y as f32 - 1.0);
+
+                let ray = Ray::new(
+                    origin,
+                    lower_left_corner + u * horizontal + v * vertical - origin,
                 );
+                let color = Self::ray_color(&ray);
+
+                self.write_pixel(x, y, Vector4::new(color.x, color.y, color.z, 1.0));
             }
+        }
+    }
+
+    fn ray_color(ray: &Ray) -> Vector3<f32> {
+        let t = Self::hit_sphere(&Vector3::new(0.0, 0.0, -1.0), 0.5, ray);
+        if t > 0.0 {
+            let n = InnerSpace::normalize(ray.at(t) - Vector3::new(0.0, 0.0, -1.0));
+            return Vector3::new(n.x + 1.0, n.y + 1.0, n.z + 1.0) * 0.5;
+        }
+
+        let unit_direction = InnerSpace::normalize(ray.direction());
+        let t = 0.5 * (unit_direction.y + 1.0);
+        (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
+    }
+
+    fn hit_sphere(center: &Vector3<f32>, radius: f32, ray: &Ray) -> f32 {
+        let origin_center = ray.origin() - center;
+        let a = ray.direction().dot(ray.direction());
+        let half_b = origin_center.dot(ray.direction());
+        let c = origin_center.dot(origin_center) - radius * radius;
+        let discriminant = half_b * half_b - a * c;
+        if discriminant < 0.0 {
+            -1.0
+        } else {
+            (-half_b - discriminant.sqrt()) / a
         }
     }
 }
