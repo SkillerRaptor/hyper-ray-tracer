@@ -4,14 +4,20 @@
  * SPDX-License-Identifier: MIT
  */
 
-use cgmath::{InnerSpace, Vector3};
+use crate::{hit_record::HitRecord, material::Material, ray::Ray};
 
-use crate::{hit_record::HitRecord, ray::Ray};
+use cgmath::{InnerSpace, Vector3};
 
 #[derive(Clone, Debug)]
 pub(crate) enum Hittable {
-    Sphere { center: Vector3<f32>, radius: f32 },
-    List { objects: Vec<Hittable> },
+    Sphere {
+        center: Vector3<f32>,
+        radius: f32,
+        material: Material,
+    },
+    List {
+        objects: Vec<Hittable>,
+    },
 }
 
 impl Hittable {
@@ -23,7 +29,11 @@ impl Hittable {
         hit_record: &mut HitRecord,
     ) -> bool {
         match *self {
-            Hittable::Sphere { center, radius } => {
+            Hittable::Sphere {
+                center,
+                radius,
+                material,
+            } => {
                 let origin_center = ray.origin() - center;
                 let a = ray.direction().dot(ray.direction());
                 let half_b = origin_center.dot(ray.direction());
@@ -48,6 +58,7 @@ impl Hittable {
                 hit_record.t = root;
                 hit_record.point = ray.at(hit_record.t);
                 hit_record.normal = (hit_record.point - center) / radius;
+                hit_record.material = material;
                 hit_record.set_face_normal(&ray, outward_normal);
 
                 true

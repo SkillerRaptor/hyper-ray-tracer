@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-use crate::{camera::Camera, hit_record::HitRecord, hittable::Hittable, ray::Ray};
+use crate::{
+    camera::Camera, hit_record::HitRecord, hittable::Hittable, material::Material, ray::Ray,
+};
 
 use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
-use rand::{distributions::Uniform, prelude::Distribution, Rng};
+use rand::Rng;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use std::{sync::mpsc::Receiver, time::Instant};
 
@@ -67,12 +69,34 @@ impl Application {
 
         let mut objects = Vec::new();
         objects.push(Hittable::Sphere {
-            center: Vector3::new(0.0, 0.0, -1.0),
-            radius: 0.5,
-        });
-        objects.push(Hittable::Sphere {
             center: Vector3::new(0.0, -100.5, -1.0),
             radius: 100.0,
+            material: Material::Lambertian {
+                albedo: Vector3::new(0.8, 0.8, 0.0),
+            },
+        });
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(0.0, 0.0, -1.0),
+            radius: 0.5,
+            material: Material::Lambertian {
+                albedo: Vector3::new(0.7, 0.3, 0.3),
+            },
+        });
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(-1.0, 0.0, -1.0),
+            radius: 0.5,
+            material: Material::Metal {
+                albedo: Vector3::new(0.8, 0.8, 0.8),
+                fuzz: 0.3,
+            },
+        });
+        objects.push(Hittable::Sphere {
+            center: Vector3::new(1.0, 0.0, -1.0),
+            radius: 0.5,
+            material: Material::Metal {
+                albedo: Vector3::new(0.8, 0.6, 0.2),
+                fuzz: 1.0,
+            },
         });
 
         let current_window_size = window.get_size();
@@ -224,44 +248,25 @@ impl Application {
 
         let mut hit_record = HitRecord::default();
         if world.hit(ray, 0.001, f32::INFINITY, &mut hit_record) {
-            let target = hit_record.point + hit_record.normal + Self::random_unit_vector();
-            return 0.5
-                * Self::ray_color(
-                    &Ray::new(hit_record.point, target - hit_record.point),
-                    world,
-                    depth - 1,
+            let mut scattered = Ray::default();
+            let mut attenuation = Vector3::new(0.0, 0.0, 0.0);
+            if hit_record
+                .material
+                .scatter(ray, &hit_record, &mut attenuation, &mut scattered)
+            {
+                let ray_color = Self::ray_color(&scattered, world, depth - 1);
+                return Vector3::new(
+                    ray_color.x * attenuation.x,
+                    ray_color.y * attenuation.y,
+                    ray_color.z * attenuation.z,
                 );
+            }
+
+            return Vector3::new(0.0, 0.0, 0.0);
         }
 
         let unit_direction = ray.direction().normalize();
         let t = 0.5 * (unit_direction.y + 1.0);
         (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
     }
-
-    fn random_unit_vector() -> Vector3<f32> {
-        Self::random_in_unit_sphere().normalize()
-    }
-
-    fn random_in_unit_sphere() -> Vector3<f32> {
-        let mut rand = rand::thread_rng();
-        let range = Uniform::from(-1.0..1.0);
-        loop {
-            let point = Vector3::new(
-                range.sample(&mut rand),
-                range.sample(&mut rand),
-                range.sample(&mut rand),
-            );
-
-            if point.dot(point) < 1.0 {
-                return point;
-            }
-        }
-    }
 }
-/*
-Rendered frame in 11.4938627s
-Rendered frame in 24.5980178s
-
-Rendered frame in 1.6378512s
-Rendered frame in 3.1428274s
- */

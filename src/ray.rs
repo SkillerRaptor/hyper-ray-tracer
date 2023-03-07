@@ -29,3 +29,12 @@ impl Ray {
         self.direction
     }
 }
+
+impl Default for Ray {
+    fn default() -> Self {
+        Self {
+            origin: Vector3::new(0.0, 0.0, 0.0),
+            direction: Vector3::new(0.0, 0.0, 0.0),
+        }
+    }
+}

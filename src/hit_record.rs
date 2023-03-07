@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-use crate::ray::Ray;
+use crate::{material::Material, ray::Ray};
 
 use cgmath::{InnerSpace, Vector3};
 
@@ -14,6 +14,7 @@ pub(crate) struct HitRecord {
     pub(crate) normal: Vector3<f32>,
     pub(crate) t: f32,
     pub(crate) front_face: bool,
+    pub(crate) material: Material,
 }
 
 impl HitRecord {
@@ -34,6 +35,9 @@ impl Default for HitRecord {
             normal: Vector3::new(0.0, 0.0, 0.0),
             t: Default::default(),
             front_face: Default::default(),
+            material: Material::Lambertian {
+                albedo: Vector3::new(0.0, 0.0, 0.0),
+            },
         }
     }
 }
