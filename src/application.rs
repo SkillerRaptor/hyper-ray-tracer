@@ -8,8 +8,8 @@ use crate::{camera::Camera, hit_record::HitRecord, hittable::Hittable, ray::Ray}
 
 use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
-use rand::Rng;
-use std::{sync::mpsc::Receiver, time::Instant};
+use rand::{distributions::Uniform, prelude::Distribution, Rng};
+use std::{io::Write, sync::mpsc::Receiver, time::Instant};
 
 pub(crate) struct Application {
     glfw: Glfw,
@@ -27,6 +27,7 @@ pub(crate) struct Application {
 
 impl Application {
     const SAMPLES_PER_PIXEL: u32 = 100;
+    const MAX_DEPTH: u32 = 50;
 
     pub(crate) fn new() -> Self {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
@@ -204,10 +205,12 @@ impl Application {
                     let v = (y as f32 + rand.gen::<f32>()) / (self.texture_size.y as f32 - 1.0);
 
                     let ray = self.camera.get_ray(u, v);
-                    pixel_color += Self::ray_color(&ray, &self.world);
+                    pixel_color += Self::ray_color(&ray, &self.world, Self::MAX_DEPTH);
                 }
 
-                pixel_color *= scale;
+                pixel_color.x = (pixel_color.x * scale).sqrt();
+                pixel_color.y = (pixel_color.y * scale).sqrt();
+                pixel_color.z = (pixel_color.z * scale).sqrt();
 
                 self.write_pixel(
                     x,
@@ -218,14 +221,44 @@ impl Application {
         }
     }
 
-    fn ray_color(ray: &Ray, world: &Hittable) -> Vector3<f32> {
-        let mut hit_record = HitRecord::default();
-        if world.hit(ray, 0.0, f32::INFINITY, &mut hit_record) {
-            return 0.5 * (hit_record.normal + Vector3::new(1.0, 1.0, 1.0));
+    fn ray_color(ray: &Ray, world: &Hittable, depth: u32) -> Vector3<f32> {
+        if depth == 0 {
+            return Vector3::new(0.0, 0.0, 0.0);
         }
 
-        let unit_direction = InnerSpace::normalize(ray.direction());
+        let mut hit_record = HitRecord::default();
+        if world.hit(ray, 0.001, f32::INFINITY, &mut hit_record) {
+            let target = hit_record.point + hit_record.normal + Self::random_unit_vector();
+            return 0.5
+                * Self::ray_color(
+                    &Ray::new(hit_record.point, target - hit_record.point),
+                    world,
+                    depth - 1,
+                );
+        }
+
+        let unit_direction = ray.direction().normalize();
         let t = 0.5 * (unit_direction.y + 1.0);
         (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
+    }
+
+    fn random_unit_vector() -> Vector3<f32> {
+        Self::random_in_unit_sphere().normalize()
+    }
+
+    fn random_in_unit_sphere() -> Vector3<f32> {
+        let mut rand = rand::thread_rng();
+        let range = Uniform::from(-1.0..1.0);
+        loop {
+            let point = Vector3::new(
+                range.sample(&mut rand),
+                range.sample(&mut rand),
+                range.sample(&mut rand),
+            );
+
+            if point.dot(point) < 1.0 {
+                return point;
+            }
+        }
     }
 }
