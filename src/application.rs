@@ -8,7 +8,10 @@ use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
 use std::sync::mpsc::Receiver;
 
-use crate::ray::Ray;
+use crate::{
+    hit_record::HitRecord, hittable::Hittable, hittable_list::HittableList, ray::Ray,
+    sphere::Sphere,
+};
 
 pub(crate) struct Application {
     glfw: Glfw,
@@ -19,6 +22,8 @@ pub(crate) struct Application {
     screen_texture: u32,
     screen_framebuffer: u32,
     pixels: Vec<Vector4<f32>>,
+
+    world: HittableList,
 }
 
 impl Application {
@@ -57,6 +62,13 @@ impl Application {
             );
         }
 
+        let mut world = HittableList::new();
+        world.add(Box::new(Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5)));
+        world.add(Box::new(Sphere::new(
+            Vector3::new(0.0, -100.5, -1.0),
+            100.0,
+        )));
+
         let current_window_size = window.get_size();
 
         let mut application = Self {
@@ -68,6 +80,7 @@ impl Application {
             screen_texture,
             screen_framebuffer,
             pixels: Vec::new(),
+            world,
         };
 
         application.handle_resize(current_window_size.0, current_window_size.1);
@@ -177,35 +190,21 @@ impl Application {
                     origin,
                     lower_left_corner + u * horizontal + v * vertical - origin,
                 );
-                let color = Self::ray_color(&ray);
+                let color = Self::ray_color(&ray, &self.world);
 
                 self.write_pixel(x, y, Vector4::new(color.x, color.y, color.z, 1.0));
             }
         }
     }
 
-    fn ray_color(ray: &Ray) -> Vector3<f32> {
-        let t = Self::hit_sphere(&Vector3::new(0.0, 0.0, -1.0), 0.5, ray);
-        if t > 0.0 {
-            let n = InnerSpace::normalize(ray.at(t) - Vector3::new(0.0, 0.0, -1.0));
-            return Vector3::new(n.x + 1.0, n.y + 1.0, n.z + 1.0) * 0.5;
+    fn ray_color(ray: &Ray, world: &dyn Hittable) -> Vector3<f32> {
+        let mut hit_record = HitRecord::default();
+        if world.hit(ray, 0.0, f32::INFINITY, &mut hit_record) {
+            return 0.5 * (hit_record.normal + Vector3::new(1.0, 1.0, 1.0));
         }
 
         let unit_direction = InnerSpace::normalize(ray.direction());
         let t = 0.5 * (unit_direction.y + 1.0);
         (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
-    }
-
-    fn hit_sphere(center: &Vector3<f32>, radius: f32, ray: &Ray) -> f32 {
-        let origin_center = ray.origin() - center;
-        let a = ray.direction().dot(ray.direction());
-        let half_b = origin_center.dot(ray.direction());
-        let c = origin_center.dot(origin_center) - radius * radius;
-        let discriminant = half_b * half_b - a * c;
-        if discriminant < 0.0 {
-            -1.0
-        } else {
-            (-half_b - discriminant.sqrt()) / a
-        }
     }
 }

@@ -6,6 +6,7 @@
 
 use cgmath::Vector3;
 
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct Ray {
     origin: Vector3<f32>,
     direction: Vector3<f32>,

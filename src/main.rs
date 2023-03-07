@@ -5,7 +5,11 @@
  */
 
 mod application;
+mod hit_record;
+mod hittable;
+mod hittable_list;
 mod ray;
+mod sphere;
 
 use application::Application;
 
