@@ -78,6 +78,8 @@ impl Application {
             20.0,
             0.1,
             10.0,
+            0.0,
+            1.0,
             current_window_size.0,
             current_window_size.1,
         );
@@ -279,8 +281,12 @@ impl Application {
                 if (center - Vector3::new(4.0, 0.2, 0.0)).magnitude() > 0.9 {
                     let sphere = if choose_material < 0.8 {
                         let albedo = Vector3::new(rand.gen(), rand.gen(), rand.gen());
-                        Hittable::Sphere {
-                            center,
+                        let center_2 = center + Vector3::new(0.0, rand.gen_range(0.0..0.5), 0.0);
+                        Hittable::MovingSphere {
+                            center_0: center,
+                            center_1: center_2,
+                            time_0: 0.0,
+                            time_1: 1.0,
                             radius: 0.2,
                             material: Material::Lambertian { albedo },
                         }

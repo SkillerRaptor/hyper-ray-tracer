@@ -31,7 +31,7 @@ impl Material {
                     scatter_direction = hit_record.normal;
                 }
 
-                *scattered = Ray::new(hit_record.point, scatter_direction);
+                *scattered = Ray::new(hit_record.point, scatter_direction, ray_in.time());
                 *attenuation = albedo;
                 true
             }
@@ -40,6 +40,7 @@ impl Material {
                 *scattered = Ray::new(
                     hit_record.point,
                     reflected + fuzz * Self::random_in_unit_sphere(),
+                    ray_in.time(),
                 );
                 *attenuation = albedo;
                 scattered.direction().dot(hit_record.normal) > 0.0
@@ -69,7 +70,7 @@ impl Material {
                     Self::refract(unit_direction, hit_record.normal, refraction_ratio)
                 };
 
-                *scattered = Ray::new(hit_record.point, direction);
+                *scattered = Ray::new(hit_record.point, direction, ray_in.time());
 
                 true
             }

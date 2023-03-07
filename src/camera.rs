@@ -22,6 +22,8 @@ pub(crate) struct Camera {
     u: Vector3<f32>,
     v: Vector3<f32>,
     lens_radius: f32,
+    time_0: f32,
+    time_1: f32,
 }
 
 impl Camera {
@@ -31,6 +33,8 @@ impl Camera {
         fov: f32,
         aperture: f32,
         focus_dist: f32,
+        time_0: f32,
+        time_1: f32,
         width: i32,
         height: i32,
     ) -> Self {
@@ -47,6 +51,8 @@ impl Camera {
             u: Vector3::new(0.0, 0.0, 0.0),
             v: Vector3::new(0.0, 0.0, 0.0),
             lens_radius: aperture / 2.0,
+            time_0,
+            time_1,
         };
 
         camera.resize(width, height);
@@ -76,10 +82,12 @@ impl Camera {
         let rd = self.lens_radius * Self::random_in_unit_disk();
         let offset = self.u * rd.x + self.v * rd.y;
 
-        return Ray::new(
+        let mut rand = rand::thread_rng();
+        Ray::new(
             self.origin + offset,
             self.lower_left_corner + s * self.horizontal + t * self.vertical - self.origin - offset,
-        );
+            rand.gen_range(self.time_0..self.time_1),
+        )
     }
 
     fn random_in_unit_disk() -> Vector3<f32> {
