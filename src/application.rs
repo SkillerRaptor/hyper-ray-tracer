@@ -12,7 +12,8 @@ use crate::{
     math::Vec3,
     ray::Ray,
     textures::{
-        checker_texture::CheckerTexture, noise_texture::NoiseTexture, solid_color::SolidColor,
+        checker_texture::CheckerTexture, image_texture::ImageTexture, noise_texture::NoiseTexture,
+        solid_color::SolidColor,
     },
 };
 
@@ -107,6 +108,13 @@ impl Application {
                 fov = 20.0;
                 aperture = 0.1;
                 Self::generate_two_perlin_spheres()
+            }
+            Scene::Earth => {
+                look_from = Vec3::new(13.0, 2.0, 3.0);
+                look_at = Vec3::new(0.0, 0.0, 0.0);
+                fov = 20.0;
+                aperture = 0.1;
+                Self::generate_earth()
             }
         };
 
@@ -403,6 +411,16 @@ impl Application {
             noise.clone(),
         )));
         objects.push(Box::new(Sphere::new(Vec3::new(0.0, 2.0, 0.0), 2.0, noise)));
+
+        Box::new(BvhNode::new(objects, 0.0, 1.0))
+    }
+
+    fn generate_earth() -> Box<dyn Hittable> {
+        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
+
+        let earth = Lambertian::new(ImageTexture::new("./assets/earthmap.jpg"));
+
+        objects.push(Box::new(Sphere::new(Vec3::new(0.0, 0.0, 0.0), 2.0, earth)));
 
         Box::new(BvhNode::new(objects, 0.0, 1.0))
     }
