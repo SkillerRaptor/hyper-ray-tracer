@@ -108,4 +108,8 @@ impl<M: Material> Hittable for MovingSphere<M> {
 
         Some(Aabb::surrounding_box(box_0, box_1))
     }
+
+    fn count(&self) -> u32 {
+        1
+    }
 }

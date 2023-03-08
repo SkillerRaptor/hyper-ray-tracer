@@ -15,4 +15,6 @@ pub(crate) trait Hittable: Sync {
     fn hit(&self, ray: &Ray, time_min: f32, time_max: f32) -> Option<HitRecord>;
 
     fn bounding_box(&self, time_start: f32, time_end: f32) -> Option<Aabb>;
+
+    fn count(&self) -> u32;
 }

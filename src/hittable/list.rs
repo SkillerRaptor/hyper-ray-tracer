@@ -11,6 +11,7 @@ pub(crate) struct List {
 }
 
 impl List {
+    #[allow(dead_code)]
     pub(crate) fn new(objects: Vec<Box<dyn Hittable>>) -> Self {
         Self { objects }
     }
@@ -41,5 +42,9 @@ impl Hittable for List {
                 let hittable_aabb = hitable.bounding_box(time_start, time_end)?;
                 Some(Aabb::surrounding_box(aabb, hittable_aabb))
             })
+    }
+
+    fn count(&self) -> u32 {
+        self.objects.iter().map(|object| object.count()).sum()
     }
 }

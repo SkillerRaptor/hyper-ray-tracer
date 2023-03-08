@@ -129,4 +129,11 @@ impl Hittable for BvhNode {
     fn bounding_box(&self, _time_start: f32, _time_end: f32) -> Option<Aabb> {
         Some(self.bounding_box)
     }
+
+    fn count(&self) -> u32 {
+        match &self.tree {
+            Node::Branch { left, right } => left.count() + right.count(),
+            Node::Leaf { leaf } => leaf.count(),
+        }
+    }
 }

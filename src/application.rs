@@ -5,6 +5,7 @@
  */
 
 use crate::{
+    arguments::{Arguments, Scene},
     camera::Camera,
     hittable::{bvh_node::BvhNode, moving_sphere::MovingSphere, sphere::Sphere, Hittable},
     materials::{dielectric::Dielectric, lambertian::Lambertian, metal::Metal},
@@ -31,13 +32,13 @@ pub(crate) struct Application {
 
     camera: Camera,
     world: Box<dyn Hittable>,
+
+    samples: u32,
+    depth: u32,
 }
 
 impl Application {
-    const SAMPLES_PER_PIXEL: u32 = 100;
-    const MAX_DEPTH: u32 = 10;
-
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(arguments: Arguments) -> Self {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
         glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
         glfw.window_hint(glfw::WindowHint::OpenGlProfile(
@@ -45,7 +46,12 @@ impl Application {
         ));
 
         let (mut window, events) = glfw
-            .create_window(1280, 720, "Hyper-Ray-Tracer", glfw::WindowMode::Windowed)
+            .create_window(
+                arguments.width,
+                arguments.height,
+                "Hyper-Ray-Tracer",
+                glfw::WindowMode::Windowed,
+            )
             .unwrap();
 
         window.make_current();
@@ -89,8 +95,10 @@ impl Application {
             current_window_size.1,
         );
 
-        // let world = Self::generate_random_scene();
-        let world = Self::generate_two_spheres();
+        let world = match arguments.scene {
+            Scene::Random => Self::generate_random_scene(),
+            Scene::TwoSpheres => Self::generate_two_spheres(),
+        };
 
         let mut application = Self {
             glfw,
@@ -103,6 +111,8 @@ impl Application {
             pixels: Vec::new(),
             camera,
             world,
+            samples: arguments.samples,
+            depth: arguments.depth,
         };
 
         application.handle_resize(current_window_size.0, current_window_size.1);
@@ -197,19 +207,28 @@ impl Application {
         );
 
         let start = Instant::now();
-
         self.render();
-
         let duration = start.elapsed();
 
-        println!(
-            "Rendered image in {:?} with a size of {}x{} and {} samples per pixel with {} as maximum depth",
-            duration, self.texture_size.x, self.texture_size.y, Self::SAMPLES_PER_PIXEL, Self::MAX_DEPTH
+        let seconds = duration.as_secs() % 60;
+        let minutes = (duration.as_secs() / 60) % 60;
+
+        log::info!(
+            "Rendered image in {:02}:{:02}m! ({:?})",
+            minutes,
+            seconds,
+            duration
         );
+        log::info!("Image info:");
+        log::info!("  Width: {}", self.texture_size.x);
+        log::info!("  Height: {}", self.texture_size.y);
+        log::info!("  Samples: {}", self.samples);
+        log::info!("  Depth: {}", self.depth);
+        log::info!("  Objects: {}", self.world.count());
     }
 
     fn render(&mut self) {
-        let scale = 1.0 / Self::SAMPLES_PER_PIXEL as f32;
+        let scale = 1.0 / self.samples as f32;
 
         self.pixels
             .par_iter_mut()
@@ -220,12 +239,12 @@ impl Application {
                 let y = index / self.texture_size.x as usize;
                 let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
 
-                for _ in 0..Self::SAMPLES_PER_PIXEL {
+                for _ in 0..self.samples {
                     let u = (x as f32 + rand.gen::<f32>()) / (self.texture_size.x as f32 - 1.0);
                     let v = (y as f32 + rand.gen::<f32>()) / (self.texture_size.y as f32 - 1.0);
 
                     let ray = self.camera.get_ray(u, v);
-                    pixel_color += Self::ray_color(&ray, &self.world, Self::MAX_DEPTH);
+                    pixel_color += Self::ray_color(&ray, &self.world, self.depth);
                 }
 
                 pixel_color.x = (pixel_color.x * scale).sqrt();

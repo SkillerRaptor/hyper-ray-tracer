@@ -82,4 +82,8 @@ impl<M: Material> Hittable for Sphere<M> {
             self.center + radius_vector,
         ))
     }
+
+    fn count(&self) -> u32 {
+        1
+    }
 }
