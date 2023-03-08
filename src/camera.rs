@@ -4,23 +4,26 @@
  * SPDX-License-Identifier: MIT
  */
 
-use cgmath::{InnerSpace, Vector3};
+use crate::{
+    math::{self, Vec3},
+    ray::Ray,
+};
+
+use cgmath::InnerSpace;
 use rand::Rng;
 
-use crate::ray::Ray;
-
 pub(crate) struct Camera {
-    origin: Vector3<f32>,
-    lower_left_corner: Vector3<f32>,
-    horizontal: Vector3<f32>,
-    vertical: Vector3<f32>,
-    look_from: Vector3<f32>,
-    look_at: Vector3<f32>,
+    origin: Vec3,
+    lower_left_corner: Vec3,
+    horizontal: Vec3,
+    vertical: Vec3,
+    look_from: Vec3,
+    look_at: Vec3,
     fov: f32,
     focus_dist: f32,
-    w: Vector3<f32>,
-    u: Vector3<f32>,
-    v: Vector3<f32>,
+    w: Vec3,
+    u: Vec3,
+    v: Vec3,
     lens_radius: f32,
     time_0: f32,
     time_1: f32,
@@ -28,8 +31,8 @@ pub(crate) struct Camera {
 
 impl Camera {
     pub(crate) fn new(
-        look_from: Vector3<f32>,
-        look_at: Vector3<f32>,
+        look_from: Vec3,
+        look_at: Vec3,
         fov: f32,
         aperture: f32,
         focus_dist: f32,
@@ -39,17 +42,17 @@ impl Camera {
         height: i32,
     ) -> Self {
         let mut camera = Camera {
-            origin: Vector3::new(0.0, 0.0, 0.0),
-            lower_left_corner: Vector3::new(0.0, 0.0, 0.0),
-            horizontal: Vector3::new(0.0, 0.0, 0.0),
-            vertical: Vector3::new(0.0, 0.0, 0.0),
+            origin: Vec3::new(0.0, 0.0, 0.0),
+            lower_left_corner: Vec3::new(0.0, 0.0, 0.0),
+            horizontal: Vec3::new(0.0, 0.0, 0.0),
+            vertical: Vec3::new(0.0, 0.0, 0.0),
             look_from,
             look_at,
             fov,
             focus_dist,
-            w: Vector3::new(0.0, 0.0, 0.0),
-            u: Vector3::new(0.0, 0.0, 0.0),
-            v: Vector3::new(0.0, 0.0, 0.0),
+            w: Vec3::new(0.0, 0.0, 0.0),
+            u: Vec3::new(0.0, 0.0, 0.0),
+            v: Vec3::new(0.0, 0.0, 0.0),
             lens_radius: aperture / 2.0,
             time_0,
             time_1,
@@ -68,7 +71,7 @@ impl Camera {
         let viewport_width = aspect_ratio * viewport_height;
 
         self.w = (self.look_from - self.look_at).normalize();
-        self.u = Vector3::new(0.0, 1.0, 0.0).cross(self.w).normalize();
+        self.u = Vec3::new(0.0, 1.0, 0.0).cross(self.w).normalize();
         self.v = self.w.cross(self.u);
 
         self.origin = self.look_from;
@@ -79,7 +82,7 @@ impl Camera {
     }
 
     pub(crate) fn get_ray(&self, s: f32, t: f32) -> Ray {
-        let rd = self.lens_radius * Self::random_in_unit_disk();
+        let rd = self.lens_radius * math::random_in_unit_disk();
         let offset = self.u * rd.x + self.v * rd.y;
 
         let mut rand = rand::thread_rng();
@@ -88,15 +91,5 @@ impl Camera {
             self.lower_left_corner + s * self.horizontal + t * self.vertical - self.origin - offset,
             rand.gen_range(self.time_0..self.time_1),
         )
-    }
-
-    fn random_in_unit_disk() -> Vector3<f32> {
-        let mut rand = rand::thread_rng();
-        loop {
-            let point = Vector3::new(rand.gen_range(-1.0..1.0), rand.gen_range(-1.0..1.0), 0.0);
-            if point.dot(point) < 1.0 {
-                return point;
-            }
-        }
     }
 }

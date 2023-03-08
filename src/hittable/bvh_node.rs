@@ -111,7 +111,7 @@ impl Hittable for BvhNode {
                 let left = left.hit(ray, time_min, time_max);
 
                 let mut time_max = time_max;
-                if let Some(hit) = left {
+                if let Some(ref hit) = left {
                     time_max = hit.t;
                 }
 

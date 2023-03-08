@@ -16,6 +16,9 @@ glfw = "0.51"
 rand = "0.8"
 rayon = "1.7"
 
+[profile.release]
+debug = true
+
 [profile.production]
 inherits = "release"
 codegen-units = 1

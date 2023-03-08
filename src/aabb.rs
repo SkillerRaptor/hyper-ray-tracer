@@ -70,12 +70,3 @@ impl Aabb {
         self.maximum
     }
 }
-
-impl Default for Aabb {
-    fn default() -> Self {
-        Self {
-            minimum: Vec3::new(0.0, 0.0, 0.0),
-            maximum: Vec3::new(0.0, 0.0, 0.0),
-        }
-    }
-}

@@ -7,11 +7,12 @@
 use crate::{
     camera::Camera,
     hittable::{bvh_node::BvhNode, moving_sphere::MovingSphere, sphere::Sphere, Hittable},
-    material::Material,
+    materials::{dielectric::Dielectric, lambertian::Lambertian, metal::Metal},
+    math::Vec3,
     ray::Ray,
 };
 
-use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
+use cgmath::{InnerSpace, Vector2, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
 use rand::Rng;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
@@ -72,8 +73,8 @@ impl Application {
 
         let current_window_size = window.get_size();
 
-        let look_from = Vector3::new(13.0, 2.0, 3.0);
-        let look_at = Vector3::new(0.0, 0.0, 0.0);
+        let look_from = Vec3::new(13.0, 2.0, 3.0);
+        let look_at = Vec3::new(0.0, 0.0, 0.0);
 
         let camera = Camera::new(
             look_from,
@@ -215,7 +216,7 @@ impl Application {
                 let mut rand = rand::thread_rng();
                 let x = index % self.texture_size.x as usize;
                 let y = index / self.texture_size.x as usize;
-                let mut pixel_color = Vector3::new(0.0, 0.0, 0.0);
+                let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
 
                 for _ in 0..Self::SAMPLES_PER_PIXEL {
                     let u = (x as f32 + rand.gen::<f32>()) / (self.texture_size.x as f32 - 1.0);
@@ -233,42 +234,35 @@ impl Application {
             });
     }
 
-    fn ray_color(ray: &Ray, world: &Box<dyn Hittable>, depth: u32) -> Vector3<f32> {
+    fn ray_color(ray: &Ray, world: &Box<dyn Hittable>, depth: u32) -> Vec3 {
         if depth == 0 {
-            return Vector3::new(0.0, 0.0, 0.0);
+            return Vec3::new(0.0, 0.0, 0.0);
         }
 
         if let Some(hit_record) = world.hit(ray, 0.001, f32::INFINITY) {
-            let mut scattered = Ray::default();
-            let mut attenuation = Vector3::new(0.0, 0.0, 0.0);
-            if hit_record
-                .material
-                .scatter(ray, &hit_record, &mut attenuation, &mut scattered)
-            {
+            if let Some((attenuation, scattered)) = hit_record.material.scatter(ray, &hit_record) {
                 let ray_color = Self::ray_color(&scattered, world, depth - 1);
-                return Vector3::new(
+                return Vec3::new(
                     ray_color.x * attenuation.x,
                     ray_color.y * attenuation.y,
                     ray_color.z * attenuation.z,
                 );
             }
 
-            return Vector3::new(0.0, 0.0, 0.0);
+            return Vec3::new(0.0, 0.0, 0.0);
         }
 
         let unit_direction = ray.direction().normalize();
         let t = 0.5 * (unit_direction.y + 1.0);
-        (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
+        (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0)
     }
 
     fn generate_random_scene() -> Box<dyn Hittable> {
         let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
 
-        let ground_material = Material::Lambertian {
-            albedo: Vector3::new(0.5, 0.5, 0.5),
-        };
+        let ground_material = Lambertian::new(Vec3::new(0.5, 0.5, 0.5));
         objects.push(Box::new(Sphere::new(
-            Vector3::new(0.0, -1000.0, 0.0),
+            Vec3::new(0.0, -1000.0, 0.0),
             1000.0,
             ground_material,
         )));
@@ -279,70 +273,53 @@ impl Application {
             for b in -11..11 {
                 let choose_material = rand.gen::<f32>();
 
-                let center = Vector3::new(
+                let center = Vec3::new(
                     a as f32 + 0.9 * rand.gen::<f32>(),
                     0.2,
                     b as f32 + 0.9 * rand.gen::<f32>(),
                 );
 
-                if (center - Vector3::new(4.0, 0.2, 0.0)).magnitude() > 0.9 {
+                if (center - Vec3::new(4.0, 0.2, 0.0)).magnitude() > 0.9 {
                     if choose_material < 0.8 {
-                        let albedo = Vector3::new(rand.gen(), rand.gen(), rand.gen());
-                        let center_2 = center + Vector3::new(0.0, rand.gen_range(0.0..0.5), 0.0);
+                        let albedo = Vec3::new(rand.gen(), rand.gen(), rand.gen());
+                        let center_2 = center + Vec3::new(0.0, rand.gen_range(0.0..0.5), 0.0);
                         objects.push(Box::new(MovingSphere::new(
                             center,
                             center_2,
                             0.0,
                             1.0,
                             0.2,
-                            Material::Lambertian { albedo },
+                            Lambertian::new(albedo),
                         )));
                     } else if choose_material < 0.95 {
-                        let albedo = Vector3::new(
+                        let albedo = Vec3::new(
                             rand.gen_range(0.5..1.0),
                             rand.gen_range(0.5..1.0),
                             rand.gen_range(0.5..1.0),
                         );
                         let fuzz = rand.gen_range(0.0..0.5);
-                        objects.push(Box::new(Sphere::new(
-                            center,
-                            0.2,
-                            Material::Metal { albedo, fuzz },
-                        )));
+                        objects.push(Box::new(Sphere::new(center, 0.2, Metal::new(albedo, fuzz))));
                     } else {
-                        objects.push(Box::new(Sphere::new(
-                            center,
-                            0.2,
-                            Material::Dielectric {
-                                index_of_referaction: 1.5,
-                            },
-                        )));
+                        objects.push(Box::new(Sphere::new(center, 0.2, Dielectric::new(1.5))));
                     };
                 }
             }
         }
 
         objects.push(Box::new(Sphere::new(
-            Vector3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
             1.0,
-            Material::Dielectric {
-                index_of_referaction: 1.5,
-            },
+            Dielectric::new(1.5),
         )));
         objects.push(Box::new(Sphere::new(
-            Vector3::new(-4.0, 1.0, 0.0),
+            Vec3::new(-4.0, 1.0, 0.0),
             1.0,
-            Material::Lambertian {
-                albedo: Vector3::new(0.4, 0.2, 0.1),
-            },
+            Lambertian::new(Vec3::new(0.4, 0.2, 0.1)),
         )));
         objects.push(Box::new(Sphere::new(
-            Vector3::new(4.0, 1.0, 0.0),
+            Vec3::new(4.0, 1.0, 0.0),
             1.0,
-            Material::Metal {
-                albedo: Vector3::new(0.7, 0.6, 0.5),
-                fuzz: 0.0,
-            },
+            Metal::new(Vec3::new(0.7, 0.6, 0.5), 0.0),
         )));
 
         Box::new(BvhNode::new(objects, 0.0, 1.0))

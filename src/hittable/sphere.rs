@@ -7,18 +7,25 @@
 use cgmath::InnerSpace;
 
 use crate::{
-    aabb::Aabb, hit_record::HitRecord, hittable::Hittable, material::Material, math::Vec3, ray::Ray,
+    aabb::Aabb, hit_record::HitRecord, hittable::Hittable, materials::Material, math::Vec3,
+    ray::Ray,
 };
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Sphere {
+#[derive(Clone)]
+pub(crate) struct Sphere<M>
+where
+    M: Material,
+{
     center: Vec3,
     radius: f32,
-    material: Material,
+    material: M,
 }
 
-impl Sphere {
-    pub(crate) fn new(center: Vec3, radius: f32, material: Material) -> Self {
+impl<M> Sphere<M>
+where
+    M: Material,
+{
+    pub(crate) fn new(center: Vec3, radius: f32, material: M) -> Self {
         Self {
             center,
             radius,
@@ -27,7 +34,10 @@ impl Sphere {
     }
 }
 
-impl Hittable for Sphere {
+impl<M> Hittable for Sphere<M>
+where
+    M: Material,
+{
     fn hit(&self, ray: &Ray, time_min: f32, time_max: f32) -> Option<HitRecord> {
         let origin_center = ray.origin() - self.center;
         let a = ray.direction().dot(ray.direction());
@@ -53,7 +63,7 @@ impl Hittable for Sphere {
             normal: Vec3::new(0.0, 0.0, 0.0),
             t: root,
             front_face: false,
-            material: self.material,
+            material: &self.material,
         };
 
         let outward_normal = (ray.at(root) - self.center) / self.radius;

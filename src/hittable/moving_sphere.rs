@@ -7,27 +7,33 @@
 use cgmath::InnerSpace;
 
 use crate::{
-    aabb::Aabb, hit_record::HitRecord, hittable::Hittable, material::Material, math::Vec3, ray::Ray,
+    aabb::Aabb, hit_record::HitRecord, hittable::Hittable, materials::Material, math::Vec3,
+    ray::Ray,
 };
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct MovingSphere {
+pub(crate) struct MovingSphere<M>
+where
+    M: Material,
+{
     center_start: Vec3,
     center_end: Vec3,
     time_start: f32,
     time_end: f32,
     radius: f32,
-    material: Material,
+    material: M,
 }
 
-impl MovingSphere {
+impl<M> MovingSphere<M>
+where
+    M: Material,
+{
     pub(crate) fn new(
         center_start: Vec3,
         center_end: Vec3,
         time_start: f32,
         time_end: f32,
         radius: f32,
-        material: Material,
+        material: M,
     ) -> Self {
         Self {
             center_start,
@@ -40,7 +46,10 @@ impl MovingSphere {
     }
 }
 
-impl MovingSphere {
+impl<M> MovingSphere<M>
+where
+    M: Material,
+{
     fn center(&self, time: f32) -> Vec3 {
         self.center_start
             + ((time - self.time_start) / (self.time_end - self.time_start))
@@ -48,7 +57,10 @@ impl MovingSphere {
     }
 }
 
-impl Hittable for MovingSphere {
+impl<M> Hittable for MovingSphere<M>
+where
+    M: Material,
+{
     fn hit(&self, ray: &Ray, time_min: f32, time_max: f32) -> Option<HitRecord> {
         let origin_center = ray.origin() - self.center(ray.time());
         let a = ray.direction().dot(ray.direction());
@@ -74,7 +86,7 @@ impl Hittable for MovingSphere {
             normal: Vec3::new(0.0, 0.0, 0.0),
             t: root,
             front_face: false,
-            material: self.material,
+            material: &self.material,
         };
 
         let outward_normal = (ray.at(root) - self.center(ray.time())) / self.radius;
