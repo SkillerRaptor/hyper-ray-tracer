@@ -10,6 +10,7 @@ use crate::{
     materials::{dielectric::Dielectric, lambertian::Lambertian, metal::Metal},
     math::Vec3,
     ray::Ray,
+    textures::{checker_texture::CheckerTexture, solid_color::SolidColor},
 };
 
 use cgmath::{InnerSpace, Vector2, Vector4};
@@ -88,7 +89,8 @@ impl Application {
             current_window_size.1,
         );
 
-        let world = Self::generate_random_scene();
+        // let world = Self::generate_random_scene();
+        let world = Self::generate_two_spheres();
 
         let mut application = Self {
             glfw,
@@ -257,14 +259,38 @@ impl Application {
         (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0)
     }
 
+    fn generate_two_spheres() -> Box<dyn Hittable> {
+        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
+
+        let checker = Lambertian::new(CheckerTexture::new(
+            SolidColor::new(Vec3::new(0.2, 0.3, 0.1)),
+            SolidColor::new(Vec3::new(0.9, 0.9, 0.9)),
+        ));
+
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(0.0, -10.0, 0.0),
+            10.0,
+            checker.clone(),
+        )));
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(0.0, 10.0, 0.0),
+            10.0,
+            checker,
+        )));
+
+        Box::new(BvhNode::new(objects, 0.0, 1.0))
+    }
+
     fn generate_random_scene() -> Box<dyn Hittable> {
         let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
 
-        let ground_material = Lambertian::new(Vec3::new(0.5, 0.5, 0.5));
         objects.push(Box::new(Sphere::new(
             Vec3::new(0.0, -1000.0, 0.0),
             1000.0,
-            ground_material,
+            Lambertian::new(CheckerTexture::new(
+                SolidColor::new(Vec3::new(0.2, 0.3, 0.1)),
+                SolidColor::new(Vec3::new(0.9, 0.9, 0.9)),
+            )),
         )));
 
         let mut rand = rand::thread_rng();
@@ -289,7 +315,7 @@ impl Application {
                             0.0,
                             1.0,
                             0.2,
-                            Lambertian::new(albedo),
+                            Lambertian::new(SolidColor::new(albedo)),
                         )));
                     } else if choose_material < 0.95 {
                         let albedo = Vec3::new(
@@ -314,7 +340,7 @@ impl Application {
         objects.push(Box::new(Sphere::new(
             Vec3::new(-4.0, 1.0, 0.0),
             1.0,
-            Lambertian::new(Vec3::new(0.4, 0.2, 0.1)),
+            Lambertian::new(SolidColor::new(Vec3::new(0.4, 0.2, 0.1))),
         )));
         objects.push(Box::new(Sphere::new(
             Vec3::new(4.0, 1.0, 0.0),

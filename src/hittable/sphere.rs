@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+use std::f32::consts::PI;
+
 use cgmath::InnerSpace;
 
 use crate::{
@@ -12,19 +14,13 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub(crate) struct Sphere<M>
-where
-    M: Material,
-{
+pub(crate) struct Sphere<M: Material> {
     center: Vec3,
     radius: f32,
     material: M,
 }
 
-impl<M> Sphere<M>
-where
-    M: Material,
-{
+impl<M: Material> Sphere<M> {
     pub(crate) fn new(center: Vec3, radius: f32, material: M) -> Self {
         Self {
             center,
@@ -32,12 +28,16 @@ where
             material,
         }
     }
+
+    fn calculate_uv(point: Vec3) -> (f32, f32) {
+        let theta = (-point.y).acos();
+        let phi = (-point.z).atan2(point.x) + PI;
+
+        (phi / (2.0 * PI), theta / PI)
+    }
 }
 
-impl<M> Hittable for Sphere<M>
-where
-    M: Material,
-{
+impl<M: Material> Hittable for Sphere<M> {
     fn hit(&self, ray: &Ray, time_min: f32, time_max: f32) -> Option<HitRecord> {
         let origin_center = ray.origin() - self.center;
         let a = ray.direction().dot(ray.direction());
@@ -58,15 +58,18 @@ where
             }
         }
 
+        let outward_normal = (ray.at(root) - self.center) / self.radius;
+        let (u, v) = Self::calculate_uv(outward_normal);
         let mut hit_record = HitRecord {
             point: ray.at(root),
             normal: Vec3::new(0.0, 0.0, 0.0),
             t: root,
+            u,
+            v,
             front_face: false,
             material: &self.material,
         };
 
-        let outward_normal = (ray.at(root) - self.center) / self.radius;
         hit_record.set_face_normal(&ray, outward_normal);
 
         Some(hit_record)

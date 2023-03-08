@@ -9,20 +9,21 @@ use crate::{
     materials::Material,
     math::{self, Vec3},
     ray::Ray,
+    textures::Texture,
 };
 
 #[derive(Clone)]
-pub(crate) struct Lambertian {
-    albedo: Vec3,
+pub(crate) struct Lambertian<T: Texture> {
+    albedo: T,
 }
 
-impl Lambertian {
-    pub(crate) fn new(albedo: Vec3) -> Self {
+impl<T: Texture> Lambertian<T> {
+    pub(crate) fn new(albedo: T) -> Self {
         Self { albedo }
     }
 }
 
-impl Material for Lambertian {
+impl<T: Texture> Material for Lambertian<T> {
     fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Vec3, Ray)> {
         let mut scatter_direction = hit_record.normal + math::random_unit_vector();
         if math::near_zero(scatter_direction) {
@@ -30,7 +31,8 @@ impl Material for Lambertian {
         }
 
         Some((
-            self.albedo,
+            self.albedo
+                .value(hit_record.u, hit_record.v, hit_record.point),
             Ray::new(hit_record.point, scatter_direction, ray.time()),
         ))
     }

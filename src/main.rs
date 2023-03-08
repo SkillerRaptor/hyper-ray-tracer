@@ -12,6 +12,7 @@ mod hittable;
 mod materials;
 mod math;
 mod ray;
+mod textures;
 
 use application::Application;
 

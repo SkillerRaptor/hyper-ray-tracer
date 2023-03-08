@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+use std::f32::consts::PI;
+
 use cgmath::InnerSpace;
 
 use crate::{
@@ -11,10 +13,7 @@ use crate::{
     ray::Ray,
 };
 
-pub(crate) struct MovingSphere<M>
-where
-    M: Material,
-{
+pub(crate) struct MovingSphere<M: Material> {
     center_start: Vec3,
     center_end: Vec3,
     time_start: f32,
@@ -23,10 +22,7 @@ where
     material: M,
 }
 
-impl<M> MovingSphere<M>
-where
-    M: Material,
-{
+impl<M: Material> MovingSphere<M> {
     pub(crate) fn new(
         center_start: Vec3,
         center_end: Vec3,
@@ -44,12 +40,16 @@ where
             material,
         }
     }
+
+    fn calculate_uv(point: Vec3) -> (f32, f32) {
+        let theta = (-point.y).acos();
+        let phi = (-point.z).atan2(point.x) + PI;
+
+        (phi / (2.0 * PI), theta / PI)
+    }
 }
 
-impl<M> MovingSphere<M>
-where
-    M: Material,
-{
+impl<M: Material> MovingSphere<M> {
     fn center(&self, time: f32) -> Vec3 {
         self.center_start
             + ((time - self.time_start) / (self.time_end - self.time_start))
@@ -57,10 +57,7 @@ where
     }
 }
 
-impl<M> Hittable for MovingSphere<M>
-where
-    M: Material,
-{
+impl<M: Material> Hittable for MovingSphere<M> {
     fn hit(&self, ray: &Ray, time_min: f32, time_max: f32) -> Option<HitRecord> {
         let origin_center = ray.origin() - self.center(ray.time());
         let a = ray.direction().dot(ray.direction());
@@ -81,15 +78,18 @@ where
             }
         }
 
+        let outward_normal = (ray.at(root) - self.center(ray.time())) / self.radius;
+        let (u, v) = Self::calculate_uv(outward_normal);
         let mut hit_record = HitRecord {
             point: ray.at(root),
             normal: Vec3::new(0.0, 0.0, 0.0),
             t: root,
+            u,
+            v,
             front_face: false,
             material: &self.material,
         };
 
-        let outward_normal = (ray.at(root) - self.center(ray.time())) / self.radius;
         hit_record.set_face_normal(&ray, outward_normal);
 
         Some(hit_record)

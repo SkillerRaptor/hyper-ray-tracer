@@ -4,11 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-use crate::{
-    materials::{lambertian::Lambertian, Material},
-    math::Vec3,
-    ray::Ray,
-};
+use crate::{materials::Material, math::Vec3, ray::Ray};
 
 use cgmath::InnerSpace;
 
@@ -16,6 +12,8 @@ pub(crate) struct HitRecord<'a> {
     pub(crate) point: Vec3,
     pub(crate) normal: Vec3,
     pub(crate) t: f32,
+    pub(crate) u: f32,
+    pub(crate) v: f32,
     pub(crate) front_face: bool,
     pub(crate) material: &'a dyn Material,
 }
