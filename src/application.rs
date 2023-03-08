@@ -6,9 +6,7 @@
 
 use crate::{
     camera::Camera,
-    hittable::{
-        bvh_node::BvhNode, list::List, moving_sphere::MovingSphere, sphere::Sphere, Hittable,
-    },
+    hittable::{bvh_node::BvhNode, moving_sphere::MovingSphere, sphere::Sphere, Hittable},
     material::Material,
     ray::Ray,
 };
@@ -35,7 +33,7 @@ pub(crate) struct Application {
 
 impl Application {
     const SAMPLES_PER_PIXEL: u32 = 100;
-    const MAX_DEPTH: u32 = 50;
+    const MAX_DEPTH: u32 = 10;
 
     pub(crate) fn new() -> Self {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
@@ -347,7 +345,6 @@ impl Application {
             },
         )));
 
-        //Box::new(BvhNode::new(objects, 0.0, 1.0))
-        Box::new(List::new(objects))
+        Box::new(BvhNode::new(objects, 0.0, 1.0))
     }
 }
