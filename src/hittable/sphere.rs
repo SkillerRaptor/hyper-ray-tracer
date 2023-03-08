@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-use std::f32::consts::PI;
-
-use cgmath::InnerSpace;
-
 use crate::{
     aabb::Aabb, hit_record::HitRecord, hittable::Hittable, materials::Material, math::Vec3,
     ray::Ray,
 };
+
+use cgmath::InnerSpace;
+use std::f32::consts::PI;
 
 #[derive(Clone)]
 pub(crate) struct Sphere<M: Material> {

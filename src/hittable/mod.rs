@@ -9,6 +9,7 @@ use crate::{aabb::Aabb, hit_record::HitRecord, ray::Ray};
 pub(crate) mod bvh_node;
 pub(crate) mod list;
 pub(crate) mod moving_sphere;
+pub(crate) mod rect;
 pub(crate) mod sphere;
 
 pub(crate) trait Hittable: Sync {

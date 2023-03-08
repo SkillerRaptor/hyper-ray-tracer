@@ -7,8 +7,16 @@
 use crate::{
     arguments::{Arguments, Scene},
     camera::Camera,
-    hittable::{bvh_node::BvhNode, moving_sphere::MovingSphere, sphere::Sphere, Hittable},
-    materials::{dielectric::Dielectric, lambertian::Lambertian, metal::Metal},
+    hittable::{
+        bvh_node::BvhNode,
+        moving_sphere::MovingSphere,
+        rect::{Plane, Rect},
+        sphere::Sphere,
+        Hittable,
+    },
+    materials::{
+        dielectric::Dielectric, diffuse_light::DiffuseLight, lambertian::Lambertian, metal::Metal,
+    },
     math::Vec3,
     ray::Ray,
     textures::{
@@ -17,7 +25,7 @@ use crate::{
     },
 };
 
-use cgmath::{InnerSpace, Vector2, Vector4};
+use cgmath::{ElementWise, InnerSpace, Vector2, Vector4};
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
 use rand::Rng;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
@@ -36,6 +44,7 @@ pub(crate) struct Application {
     camera: Camera,
     world: Box<dyn Hittable>,
 
+    background: Vec3,
     samples: u32,
     depth: u32,
 }
@@ -87,34 +96,47 @@ impl Application {
         let look_at;
         let fov;
         let aperture;
+        let background;
         let world = match arguments.scene {
             Scene::Random => {
                 look_from = Vec3::new(13.0, 2.0, 3.0);
                 look_at = Vec3::new(0.0, 0.0, 0.0);
                 fov = 20.0;
                 aperture = 0.1;
+                background = Vec3::new(0.7, 0.8, 1.0);
                 Self::generate_random_scene()
             }
             Scene::TwoSpheres => {
                 look_from = Vec3::new(13.0, 2.0, 3.0);
                 look_at = Vec3::new(0.0, 0.0, 0.0);
                 fov = 20.0;
-                aperture = 0.1;
+                aperture = 0.0;
+                background = Vec3::new(0.7, 0.8, 1.0);
                 Self::generate_two_spheres()
             }
             Scene::TwoPerlinSpheres => {
                 look_from = Vec3::new(13.0, 2.0, 3.0);
                 look_at = Vec3::new(0.0, 0.0, 0.0);
                 fov = 20.0;
-                aperture = 0.1;
+                aperture = 0.0;
+                background = Vec3::new(0.7, 0.8, 1.0);
                 Self::generate_two_perlin_spheres()
             }
             Scene::Earth => {
                 look_from = Vec3::new(13.0, 2.0, 3.0);
                 look_at = Vec3::new(0.0, 0.0, 0.0);
                 fov = 20.0;
-                aperture = 0.1;
+                aperture = 0.0;
+                background = Vec3::new(0.7, 0.8, 1.0);
                 Self::generate_earth()
+            }
+            Scene::SimpleLight => {
+                look_from = Vec3::new(26.0, 3.0, 6.0);
+                look_at = Vec3::new(0.0, 2.0, 0.0);
+                fov = 20.0;
+                aperture = 0.0;
+                background = Vec3::new(0.0, 0.0, 0.0);
+                Self::generate_simple_light()
             }
         };
 
@@ -141,6 +163,7 @@ impl Application {
             pixels: Vec::new(),
             camera,
             world,
+            background,
             samples: arguments.samples,
             depth: arguments.depth,
         };
@@ -274,7 +297,7 @@ impl Application {
                     let v = (y as f32 + rand.gen::<f32>()) / (self.texture_size.y as f32 - 1.0);
 
                     let ray = self.camera.get_ray(u, v);
-                    pixel_color += Self::ray_color(&ray, &self.world, self.depth);
+                    pixel_color += Self::ray_color(&ray, self.background, &self.world, self.depth);
                 }
 
                 pixel_color.x = (pixel_color.x * scale).sqrt();
@@ -285,27 +308,24 @@ impl Application {
             });
     }
 
-    fn ray_color(ray: &Ray, world: &Box<dyn Hittable>, depth: u32) -> Vec3 {
+    fn ray_color(ray: &Ray, background: Vec3, world: &Box<dyn Hittable>, depth: u32) -> Vec3 {
         if depth == 0 {
             return Vec3::new(0.0, 0.0, 0.0);
         }
 
-        if let Some(hit_record) = world.hit(ray, 0.001, f32::INFINITY) {
-            if let Some((attenuation, scattered)) = hit_record.material.scatter(ray, &hit_record) {
-                let ray_color = Self::ray_color(&scattered, world, depth - 1);
-                return Vec3::new(
-                    ray_color.x * attenuation.x,
-                    ray_color.y * attenuation.y,
-                    ray_color.z * attenuation.z,
-                );
-            }
+        let Some(hit_record) = world.hit(ray, 0.001, f32::INFINITY) else {
+            return background
+        };
 
-            return Vec3::new(0.0, 0.0, 0.0);
-        }
+        let emitted = hit_record
+            .material
+            .emitted(hit_record.u, hit_record.v, hit_record.point);
+        let Some((attenuation, scattered)) = hit_record.material.scatter(ray, &hit_record) else {
+            return emitted
+        };
 
-        let unit_direction = ray.direction().normalize();
-        let t = 0.5 * (unit_direction.y + 1.0);
-        (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0)
+        let ray_color = Self::ray_color(&scattered, background, world, depth - 1);
+        attenuation.mul_element_wise(ray_color) + emitted
     }
 
     fn generate_random_scene() -> Box<dyn Hittable> {
@@ -421,6 +441,31 @@ impl Application {
         let earth = Lambertian::new(ImageTexture::new("./assets/earthmap.jpg"));
 
         objects.push(Box::new(Sphere::new(Vec3::new(0.0, 0.0, 0.0), 2.0, earth)));
+
+        Box::new(BvhNode::new(objects, 0.0, 1.0))
+    }
+
+    fn generate_simple_light() -> Box<dyn Hittable> {
+        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
+
+        let noise = Lambertian::new(NoiseTexture::new(4.0));
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(0.0, -1000.0, 0.0),
+            1000.0,
+            noise.clone(),
+        )));
+        objects.push(Box::new(Sphere::new(Vec3::new(0.0, 2.0, 0.0), 2.0, noise)));
+
+        let diffuse_light = DiffuseLight::new(SolidColor::new(Vec3::new(4.0, 4.0, 4.0)));
+        objects.push(Box::new(Rect::new(
+            Plane::XY,
+            3.0,
+            5.0,
+            1.0,
+            3.0,
+            -2.0,
+            diffuse_light,
+        )));
 
         Box::new(BvhNode::new(objects, 0.0, 1.0))
     }

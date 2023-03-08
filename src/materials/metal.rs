@@ -40,4 +40,8 @@ impl Material for Metal {
             None
         }
     }
+
+    fn emitted(&self, _u: f32, _v: f32, _point: Vec3) -> Vec3 {
+        Vec3::new(0.0, 0.0, 0.0)
+    }
 }

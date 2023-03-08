@@ -36,4 +36,8 @@ impl<T: Texture> Material for Lambertian<T> {
             Ray::new(hit_record.point, scatter_direction, ray.time()),
         ))
     }
+
+    fn emitted(&self, _u: f32, _v: f32, _point: Vec3) -> Vec3 {
+        Vec3::new(0.0, 0.0, 0.0)
+    }
 }

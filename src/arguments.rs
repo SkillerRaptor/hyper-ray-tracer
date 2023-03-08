@@ -12,6 +12,7 @@ pub(crate) enum Scene {
     TwoSpheres,
     TwoPerlinSpheres,
     Earth,
+    SimpleLight,
 }
 
 #[derive(Debug, Parser)]
