@@ -5,7 +5,12 @@
  */
 
 use crate::{
-    camera::Camera, hit_record::HitRecord, hittable::Hittable, material::Material, ray::Ray,
+    camera::Camera,
+    hittable::{
+        bvh_node::BvhNode, list::List, moving_sphere::MovingSphere, sphere::Sphere, Hittable,
+    },
+    material::Material,
+    ray::Ray,
 };
 
 use cgmath::{InnerSpace, Vector2, Vector3, Vector4};
@@ -25,7 +30,7 @@ pub(crate) struct Application {
     pixels: Vec<Vector4<f32>>,
 
     camera: Camera,
-    world: Hittable,
+    world: Box<dyn Hittable>,
 }
 
 impl Application {
@@ -195,7 +200,11 @@ impl Application {
         self.render();
 
         let duration = start.elapsed();
-        println!("Rendered frame in {:?}", duration);
+
+        println!(
+            "Rendered image in {:?} with a size of {}x{} and {} samples per pixel with {} as maximum depth",
+            duration, self.texture_size.x, self.texture_size.y, Self::SAMPLES_PER_PIXEL, Self::MAX_DEPTH
+        );
     }
 
     fn render(&mut self) {
@@ -226,13 +235,12 @@ impl Application {
             });
     }
 
-    fn ray_color(ray: &Ray, world: &Hittable, depth: u32) -> Vector3<f32> {
+    fn ray_color(ray: &Ray, world: &Box<dyn Hittable>, depth: u32) -> Vector3<f32> {
         if depth == 0 {
             return Vector3::new(0.0, 0.0, 0.0);
         }
 
-        let mut hit_record = HitRecord::default();
-        if world.hit(ray, 0.001, f32::INFINITY, &mut hit_record) {
+        if let Some(hit_record) = world.hit(ray, 0.001, f32::INFINITY) {
             let mut scattered = Ray::default();
             let mut attenuation = Vector3::new(0.0, 0.0, 0.0);
             if hit_record
@@ -255,19 +263,20 @@ impl Application {
         (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
     }
 
-    fn generate_random_scene() -> Hittable {
-        let mut objects = Vec::new();
+    fn generate_random_scene() -> Box<dyn Hittable> {
+        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
 
         let ground_material = Material::Lambertian {
             albedo: Vector3::new(0.5, 0.5, 0.5),
         };
-        objects.push(Hittable::Sphere {
-            center: Vector3::new(0.0, -1000.0, 0.0),
-            radius: 1000.0,
-            material: ground_material,
-        });
+        objects.push(Box::new(Sphere::new(
+            Vector3::new(0.0, -1000.0, 0.0),
+            1000.0,
+            ground_material,
+        )));
 
         let mut rand = rand::thread_rng();
+
         for a in -11..11 {
             for b in -11..11 {
                 let choose_material = rand.gen::<f32>();
@@ -279,17 +288,17 @@ impl Application {
                 );
 
                 if (center - Vector3::new(4.0, 0.2, 0.0)).magnitude() > 0.9 {
-                    let sphere = if choose_material < 0.8 {
+                    if choose_material < 0.8 {
                         let albedo = Vector3::new(rand.gen(), rand.gen(), rand.gen());
                         let center_2 = center + Vector3::new(0.0, rand.gen_range(0.0..0.5), 0.0);
-                        Hittable::MovingSphere {
-                            center_0: center,
-                            center_1: center_2,
-                            time_0: 0.0,
-                            time_1: 1.0,
-                            radius: 0.2,
-                            material: Material::Lambertian { albedo },
-                        }
+                        objects.push(Box::new(MovingSphere::new(
+                            center,
+                            center_2,
+                            0.0,
+                            1.0,
+                            0.2,
+                            Material::Lambertian { albedo },
+                        )));
                     } else if choose_material < 0.95 {
                         let albedo = Vector3::new(
                             rand.gen_range(0.5..1.0),
@@ -297,49 +306,48 @@ impl Application {
                             rand.gen_range(0.5..1.0),
                         );
                         let fuzz = rand.gen_range(0.0..0.5);
-                        Hittable::Sphere {
+                        objects.push(Box::new(Sphere::new(
                             center,
-                            radius: 0.2,
-                            material: Material::Metal { albedo, fuzz },
-                        }
+                            0.2,
+                            Material::Metal { albedo, fuzz },
+                        )));
                     } else {
-                        Hittable::Sphere {
+                        objects.push(Box::new(Sphere::new(
                             center,
-                            radius: 0.2,
-                            material: Material::Dielectric {
+                            0.2,
+                            Material::Dielectric {
                                 index_of_referaction: 1.5,
                             },
-                        }
+                        )));
                     };
-
-                    objects.push(sphere);
                 }
             }
         }
 
-        objects.push(Hittable::Sphere {
-            center: Vector3::new(0.0, 1.0, 0.0),
-            radius: 1.0,
-            material: Material::Dielectric {
+        objects.push(Box::new(Sphere::new(
+            Vector3::new(0.0, 1.0, 0.0),
+            1.0,
+            Material::Dielectric {
                 index_of_referaction: 1.5,
             },
-        });
-        objects.push(Hittable::Sphere {
-            center: Vector3::new(-4.0, 1.0, 0.0),
-            radius: 1.0,
-            material: Material::Lambertian {
+        )));
+        objects.push(Box::new(Sphere::new(
+            Vector3::new(-4.0, 1.0, 0.0),
+            1.0,
+            Material::Lambertian {
                 albedo: Vector3::new(0.4, 0.2, 0.1),
             },
-        });
-        objects.push(Hittable::Sphere {
-            center: Vector3::new(4.0, 1.0, 0.0),
-            radius: 1.0,
-            material: Material::Metal {
+        )));
+        objects.push(Box::new(Sphere::new(
+            Vector3::new(4.0, 1.0, 0.0),
+            1.0,
+            Material::Metal {
                 albedo: Vector3::new(0.7, 0.6, 0.5),
                 fuzz: 0.0,
             },
-        });
+        )));
 
-        Hittable::List { objects }
+        //Box::new(BvhNode::new(objects, 0.0, 1.0))
+        Box::new(List::new(objects))
     }
 }

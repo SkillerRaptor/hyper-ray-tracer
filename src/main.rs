@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+mod aabb;
 mod application;
 mod camera;
 mod hit_record;
 mod hittable;
 mod material;
+mod math;
 mod ray;
 
 use application::Application;
