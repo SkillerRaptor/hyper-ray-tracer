@@ -11,7 +11,9 @@ use crate::{
     materials::{dielectric::Dielectric, lambertian::Lambertian, metal::Metal},
     math::Vec3,
     ray::Ray,
-    textures::{checker_texture::CheckerTexture, solid_color::SolidColor},
+    textures::{
+        checker_texture::CheckerTexture, noise_texture::NoiseTexture, solid_color::SolidColor,
+    },
 };
 
 use cgmath::{InnerSpace, Vector2, Vector4};
@@ -80,25 +82,45 @@ impl Application {
 
         let current_window_size = window.get_size();
 
-        let look_from = Vec3::new(13.0, 2.0, 3.0);
-        let look_at = Vec3::new(0.0, 0.0, 0.0);
+        let look_from;
+        let look_at;
+        let fov;
+        let aperture;
+        let world = match arguments.scene {
+            Scene::Random => {
+                look_from = Vec3::new(13.0, 2.0, 3.0);
+                look_at = Vec3::new(0.0, 0.0, 0.0);
+                fov = 20.0;
+                aperture = 0.1;
+                Self::generate_random_scene()
+            }
+            Scene::TwoSpheres => {
+                look_from = Vec3::new(13.0, 2.0, 3.0);
+                look_at = Vec3::new(0.0, 0.0, 0.0);
+                fov = 20.0;
+                aperture = 0.1;
+                Self::generate_two_spheres()
+            }
+            Scene::TwoPerlinSpheres => {
+                look_from = Vec3::new(13.0, 2.0, 3.0);
+                look_at = Vec3::new(0.0, 0.0, 0.0);
+                fov = 20.0;
+                aperture = 0.1;
+                Self::generate_two_perlin_spheres()
+            }
+        };
 
         let camera = Camera::new(
             look_from,
             look_at,
-            20.0,
-            0.1,
+            fov,
+            aperture,
             10.0,
             0.0,
             1.0,
             current_window_size.0,
             current_window_size.1,
         );
-
-        let world = match arguments.scene {
-            Scene::Random => Self::generate_random_scene(),
-            Scene::TwoSpheres => Self::generate_two_spheres(),
-        };
 
         let mut application = Self {
             glfw,
@@ -278,28 +300,6 @@ impl Application {
         (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0)
     }
 
-    fn generate_two_spheres() -> Box<dyn Hittable> {
-        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
-
-        let checker = Lambertian::new(CheckerTexture::new(
-            SolidColor::new(Vec3::new(0.2, 0.3, 0.1)),
-            SolidColor::new(Vec3::new(0.9, 0.9, 0.9)),
-        ));
-
-        objects.push(Box::new(Sphere::new(
-            Vec3::new(0.0, -10.0, 0.0),
-            10.0,
-            checker.clone(),
-        )));
-        objects.push(Box::new(Sphere::new(
-            Vec3::new(0.0, 10.0, 0.0),
-            10.0,
-            checker,
-        )));
-
-        Box::new(BvhNode::new(objects, 0.0, 1.0))
-    }
-
     fn generate_random_scene() -> Box<dyn Hittable> {
         let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
 
@@ -366,6 +366,43 @@ impl Application {
             1.0,
             Metal::new(Vec3::new(0.7, 0.6, 0.5), 0.0),
         )));
+
+        Box::new(BvhNode::new(objects, 0.0, 1.0))
+    }
+
+    fn generate_two_spheres() -> Box<dyn Hittable> {
+        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
+
+        let checker = Lambertian::new(CheckerTexture::new(
+            SolidColor::new(Vec3::new(0.2, 0.3, 0.1)),
+            SolidColor::new(Vec3::new(0.9, 0.9, 0.9)),
+        ));
+
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(0.0, -10.0, 0.0),
+            10.0,
+            checker.clone(),
+        )));
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(0.0, 10.0, 0.0),
+            10.0,
+            checker,
+        )));
+
+        Box::new(BvhNode::new(objects, 0.0, 1.0))
+    }
+
+    fn generate_two_perlin_spheres() -> Box<dyn Hittable> {
+        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
+
+        let noise = Lambertian::new(NoiseTexture::new(4.0));
+
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(0.0, -1000.0, 0.0),
+            1000.0,
+            noise.clone(),
+        )));
+        objects.push(Box::new(Sphere::new(Vec3::new(0.0, 2.0, 0.0), 2.0, noise)));
 
         Box::new(BvhNode::new(objects, 0.0, 1.0))
     }

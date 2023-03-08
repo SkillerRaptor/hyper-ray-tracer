@@ -13,6 +13,7 @@ mod hittable;
 mod logger;
 mod materials;
 mod math;
+mod perlin_noise;
 mod ray;
 mod textures;
 

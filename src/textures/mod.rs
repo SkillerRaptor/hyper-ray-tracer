@@ -7,6 +7,7 @@
 use crate::math::Vec3;
 
 pub(crate) mod checker_texture;
+pub(crate) mod noise_texture;
 pub(crate) mod solid_color;
 
 pub(crate) trait Texture: Sync {

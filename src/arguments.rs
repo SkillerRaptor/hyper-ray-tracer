@@ -10,6 +10,7 @@ use clap::{Parser, ValueEnum};
 pub(crate) enum Scene {
     Random,
     TwoSpheres,
+    TwoPerlinSpheres,
 }
 
 #[derive(Debug, Parser)]
