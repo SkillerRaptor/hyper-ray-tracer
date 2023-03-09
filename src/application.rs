@@ -101,6 +101,8 @@ impl Application {
         let fov;
         let aperture;
         let background;
+
+        log::info!("Generating world...");
         let world = match arguments.scene {
             Scene::Random => {
                 look_from = Vec3::new(13.0, 2.0, 3.0);
@@ -158,7 +160,17 @@ impl Application {
                 background = Vec3::new(0.0, 0.0, 0.0);
                 Self::generate_cornell_smoke_box()
             }
+            Scene::Final => {
+                look_from = Vec3::new(478.0, 278.0, -600.0);
+                look_at = Vec3::new(278.0, 278.0, 0.0);
+                fov = 40.0;
+                aperture = 0.0;
+                background = Vec3::new(0.0, 0.0, 0.0);
+                Self::generate_final_scene()
+            }
         };
+
+        log::info!("Generated world");
 
         let camera = Camera::new(
             look_from,
@@ -278,6 +290,8 @@ impl Application {
             (self.texture_size.x * self.texture_size.y) as usize,
             Vector4::new(0.0, 0.0, 0.0, 0.0),
         );
+
+        log::info!("Rendering image...");
 
         let start = Instant::now();
         self.render();
@@ -664,6 +678,126 @@ impl Application {
             SolidColor::new(Vec3::new(1.0, 1.0, 1.0)),
         ));
         objects.push(cuboid_2);
+
+        Box::new(BvhNode::new(objects, 0.0, 1.0))
+    }
+
+    fn generate_final_scene() -> Box<dyn Hittable> {
+        const BOXES_PER_SIDE: usize = 20;
+
+        let mut rand = rand::thread_rng();
+
+        let ground_material = Lambertian::new(SolidColor::new(Vec3::new(0.48, 0.83, 0.53)));
+        let mut ground_boxes: Vec<Box<dyn Hittable>> = Vec::new();
+        for i in 0..BOXES_PER_SIDE {
+            for j in 0..BOXES_PER_SIDE {
+                let w = 100.0;
+                let x0 = -1000.0 + i as f32 * w;
+                let z0 = -1000.0 + j as f32 * w;
+                let y0 = 0.0;
+                let x1 = x0 + w;
+                let y1 = rand.gen_range(1.0..101.0);
+                let z1 = z0 + w;
+
+                ground_boxes.push(Box::new(Cuboid::new(
+                    Vec3::new(x0, y0, z0),
+                    Vec3::new(x1, y1, z1),
+                    ground_material.clone(),
+                )));
+            }
+        }
+
+        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
+
+        objects.push(Box::new(BvhNode::new(ground_boxes, 0.0, 1.0)));
+
+        let diffuse_light = DiffuseLight::new(SolidColor::new(Vec3::new(7.0, 7.0, 7.0)));
+        objects.push(Box::new(Rect::new(
+            Plane::ZX,
+            123.0,
+            423.0,
+            147.0,
+            412.0,
+            554.0,
+            diffuse_light,
+        )));
+
+        let center_1 = Vec3::new(400.0, 400.0, 200.0);
+        let center_2 = center_1 + Vec3::new(30.0, 0.0, 0.0);
+
+        let moving_sphere_material = Lambertian::new(SolidColor::new(Vec3::new(0.7, 0.3, 0.1)));
+        objects.push(Box::new(MovingSphere::new(
+            center_1,
+            center_2,
+            0.0,
+            1.0,
+            50.0,
+            moving_sphere_material,
+        )));
+
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(260.0, 150.0, 45.0),
+            50.0,
+            Dielectric::new(1.5),
+        )));
+
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(0.0, 150.0, 145.0),
+            50.0,
+            Metal::new(Vec3::new(0.8, 0.8, 0.9), 1.0),
+        )));
+
+        let boundary = Sphere::new(Vec3::new(360.0, 150.0, 145.0), 70.0, Dielectric::new(1.5));
+        objects.push(Box::new(boundary.clone()));
+        objects.push(Box::new(ConstantMedium::new(
+            Box::new(boundary),
+            0.2,
+            SolidColor::new(Vec3::new(0.2, 0.4, 0.9)),
+        )));
+
+        let boundary = Sphere::new(Vec3::new(0.0, 0.0, 0.0), 5000.0, Dielectric::new(1.5));
+        objects.push(Box::new(ConstantMedium::new(
+            Box::new(boundary),
+            0.0001,
+            SolidColor::new(Vec3::new(1.0, 1.0, 1.0)),
+        )));
+
+        let earth_map = Lambertian::new(ImageTexture::new("./assets/earthmap.jpg"));
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(400.0, 200.0, 400.0),
+            100.0,
+            earth_map,
+        )));
+
+        let noise = Lambertian::new(NoiseTexture::new(0.1));
+        objects.push(Box::new(Sphere::new(
+            Vec3::new(220.0, 280.0, 300.0),
+            80.0,
+            noise,
+        )));
+
+        let white = Lambertian::new(SolidColor::new(Vec3::new(0.73, 0.73, 0.73)));
+        let mut sphere_box: Vec<Box<dyn Hittable>> = Vec::new();
+        for _ in 0..1000 {
+            sphere_box.push(Box::new(Sphere::new(
+                Vec3::new(
+                    rand.gen_range(0.0..165.0),
+                    rand.gen_range(0.0..165.0),
+                    rand.gen_range(0.0..165.0),
+                ),
+                10.0,
+                white.clone(),
+            )));
+        }
+
+        objects.push(Box::new(Translation::new(
+            Box::new(Rotation::new(
+                Axis::Y,
+                Box::new(BvhNode::new(sphere_box, 0.0, 1.0)),
+                15.0,
+            )),
+            Vec3::new(-100.0, 270.0, 395.0),
+        )));
 
         Box::new(BvhNode::new(objects, 0.0, 1.0))
     }
