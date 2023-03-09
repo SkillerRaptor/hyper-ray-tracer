@@ -21,7 +21,8 @@ use application::Application;
 use arguments::Arguments;
 use clap::Parser;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let arguments = Arguments::parse();
 
     logger::init(3);

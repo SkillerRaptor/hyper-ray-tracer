@@ -14,12 +14,13 @@ chrono = "0.4"
 cgmath = "0.18"
 clap = { version = "4.1", features = [ "derive" ] }
 fern = { version = "0.6", features = [ "colored" ] }
+gcd = "2.3"
 gl = "0.14.0"
 glfw = "0.51"
 log = "0.4"
 image = "0.24"
 rand = "0.8"
-rayon = "1.7"
+tokio = { version = "1.26", features = [ "full" ] }
 
 [profile.production]
 inherits = "release"

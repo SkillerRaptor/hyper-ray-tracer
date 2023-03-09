@@ -12,6 +12,7 @@ use crate::{
 use cgmath::InnerSpace;
 use rand::Rng;
 
+#[derive(Clone, Debug)]
 pub(crate) struct Camera {
     origin: Vec3,
     lower_left_corner: Vec3,

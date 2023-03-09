@@ -16,7 +16,7 @@ pub(crate) mod rotation;
 pub(crate) mod sphere;
 pub(crate) mod translation;
 
-pub(crate) trait Hittable: Sync {
+pub(crate) trait Hittable: Send + Sync {
     fn hit(&self, ray: &Ray, time_min: f32, time_max: f32) -> Option<HitRecord>;
 
     fn bounding_box(&self, time_start: f32, time_end: f32) -> Option<Aabb>;

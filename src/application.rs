@@ -30,10 +30,17 @@ use crate::{
 };
 
 use cgmath::{ElementWise, InnerSpace, Vector2, Vector4};
+use gcd::Gcd;
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
 use rand::Rng;
-use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
-use std::{sync::mpsc::Receiver, time::Instant};
+use std::{
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        mpsc::Receiver,
+        Arc, Mutex,
+    },
+    time::Instant,
+};
 
 pub(crate) struct Application {
     glfw: Glfw,
@@ -43,14 +50,17 @@ pub(crate) struct Application {
     texture_size: Vector2<i32>,
     screen_texture: u32,
     screen_framebuffer: u32,
-    pixels: Vec<Vector4<f32>>,
 
     camera: Camera,
-    world: Box<dyn Hittable>,
+    world: Arc<Box<dyn Hittable>>,
 
     background: Vec3,
     samples: u32,
     depth: u32,
+
+    pixels: Arc<Mutex<Vec<Vector4<f32>>>>,
+    task_counter: Arc<AtomicU32>,
+    start_time: Instant,
 }
 
 impl Application {
@@ -192,12 +202,14 @@ impl Application {
             texture_size: Vector2::new(0, 0),
             screen_texture,
             screen_framebuffer,
-            pixels: Vec::new(),
+            pixels: Arc::new(Mutex::new(Vec::new())),
             camera,
-            world,
+            world: Arc::new(world),
             background,
             samples: arguments.samples,
             depth: arguments.depth,
+            task_counter: Arc::new(AtomicU32::new(0)),
+            start_time: Instant::now(),
         };
 
         application.handle_resize(current_window_size.0, current_window_size.1);
@@ -215,13 +227,37 @@ impl Application {
             self.window.set_title(&format!(
                 "Hyper-Ray-Tracer ({:.0} fps / {:.2})",
                 1.0 / delta_time.as_secs_f32(),
-                delta_time.as_secs_f32()
+                delta_time.as_secs_f32(),
             ));
+
+            if self.task_counter.load(Ordering::SeqCst)
+                == (self.texture_size.x * self.texture_size.y) as u32
+            {
+                let duration = self.start_time.elapsed();
+
+                let seconds = duration.as_secs() % 60;
+                let minutes = (duration.as_secs() / 60) % 60;
+
+                log::info!(
+                    "Rendered image in {:02}:{:02}m! ({:?})",
+                    minutes,
+                    seconds,
+                    duration
+                );
+                log::info!("Image info:");
+                log::info!("  Width: {}", self.texture_size.x);
+                log::info!("  Height: {}", self.texture_size.y);
+                log::info!("  Samples: {}", self.samples);
+                log::info!("  Depth: {}", self.depth);
+                log::info!("  Objects: {}", self.world.count());
+
+                self.task_counter.store(0, Ordering::SeqCst);
+            }
 
             self.process_events();
 
             unsafe {
-                let data = std::mem::transmute(self.pixels.as_ptr());
+                let data = std::mem::transmute(self.pixels.lock().unwrap().as_ptr());
 
                 gl::BindTexture(gl::TEXTURE_2D, self.screen_texture);
                 gl::TexImage2D(
@@ -235,7 +271,9 @@ impl Application {
                     gl::FLOAT,
                     data,
                 );
+            }
 
+            unsafe {
                 gl::BindFramebuffer(gl::READ_FRAMEBUFFER, self.screen_framebuffer);
                 gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
                 gl::BlitFramebuffer(
@@ -286,60 +324,80 @@ impl Application {
 
         self.camera.resize(width, height);
 
-        self.pixels.resize(
+        self.pixels.lock().unwrap().resize(
             (self.texture_size.x * self.texture_size.y) as usize,
             Vector4::new(0.0, 0.0, 0.0, 0.0),
         );
 
         log::info!("Rendering image...");
 
-        let start = Instant::now();
+        self.start_time = Instant::now();
         self.render();
-        let duration = start.elapsed();
-
-        let seconds = duration.as_secs() % 60;
-        let minutes = (duration.as_secs() / 60) % 60;
-
-        log::info!(
-            "Rendered image in {:02}:{:02}m! ({:?})",
-            minutes,
-            seconds,
-            duration
-        );
-        log::info!("Image info:");
-        log::info!("  Width: {}", self.texture_size.x);
-        log::info!("  Height: {}", self.texture_size.y);
-        log::info!("  Samples: {}", self.samples);
-        log::info!("  Depth: {}", self.depth);
-        log::info!("  Objects: {}", self.world.count());
     }
 
     fn render(&mut self) {
-        let scale = 1.0 / self.samples as f32;
+        let width = self.texture_size.x as usize;
+        let height = self.texture_size.y as usize;
+        let sample_count = self.samples;
+        let background = self.background;
+        let scale = 1.0 / sample_count as f32;
+        let depth = self.depth;
 
-        self.pixels
-            .par_iter_mut()
-            .enumerate()
-            .for_each(|(index, pixel)| {
-                let mut rand = rand::thread_rng();
-                let x = index % self.texture_size.x as usize;
-                let y = index / self.texture_size.x as usize;
-                let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
+        let gcd = width.gcd(height);
+        let smallest_width = width / gcd;
+        let smallest_height = height / gcd;
 
-                for _ in 0..self.samples {
-                    let u = (x as f32 + rand.gen::<f32>()) / (self.texture_size.x as f32 - 1.0);
-                    let v = (y as f32 + rand.gen::<f32>()) / (self.texture_size.y as f32 - 1.0);
+        for i in 0..(smallest_width * smallest_height) {
+            let pixels = self.pixels.clone();
+            let camera = self.camera.clone();
+            let world = self.world.clone();
+            let task_counter = self.task_counter.clone();
 
-                    let ray = self.camera.get_ray(u, v);
-                    pixel_color += Self::ray_color(&ray, self.background, &self.world, self.depth);
+            let x = i % smallest_width as usize;
+            let y = i / smallest_width as usize;
+
+            tokio::spawn(async move {
+                let local_x = x * gcd;
+                let local_y = y * gcd;
+
+                let mut local_pixels: Vec<Vector4<f32>> =
+                    vec![Vector4::new(0.0, 0.0, 0.0, 0.0); gcd * gcd];
+
+                for y in local_y..(local_y + gcd) {
+                    let mut rand = rand::thread_rng();
+                    for x in local_x..(local_x + gcd) {
+                        let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
+
+                        for _ in 0..sample_count {
+                            let u = (x as f32 + rand.gen::<f32>()) / (width as f32 - 1.0);
+                            let v = (y as f32 + rand.gen::<f32>()) / (height as f32 - 1.0);
+
+                            let ray = camera.get_ray(u, v);
+                            pixel_color += Self::ray_color(&ray, background, &world, depth);
+                        }
+
+                        pixel_color.x = (pixel_color.x * scale).sqrt();
+                        pixel_color.y = (pixel_color.y * scale).sqrt();
+                        pixel_color.z = (pixel_color.z * scale).sqrt();
+
+                        local_pixels[(x - local_x) + gcd * (y - local_y)] =
+                            Vector4::new(pixel_color.x, pixel_color.y, pixel_color.z, 1.0);
+                    }
                 }
 
-                pixel_color.x = (pixel_color.x * scale).sqrt();
-                pixel_color.y = (pixel_color.y * scale).sqrt();
-                pixel_color.z = (pixel_color.z * scale).sqrt();
+                let position_to_index = |x: usize, y: usize| -> usize { x + width * y };
 
-                *pixel = Vector4::new(pixel_color.x, pixel_color.y, pixel_color.z, 1.0);
+                let mut pixels_buffer = pixels.lock().unwrap();
+                for (i, pixel) in local_pixels.iter().enumerate() {
+                    let x = i % gcd as usize;
+                    let y = i / gcd as usize;
+                    pixels_buffer[position_to_index(local_x + x, local_y + y)] = *pixel;
+                }
+
+                let current_task = task_counter.load(Ordering::SeqCst);
+                task_counter.store(current_task + (gcd * gcd) as u32, Ordering::SeqCst);
             });
+        }
     }
 
     fn ray_color(ray: &Ray, background: Vec3, world: &Box<dyn Hittable>, depth: u32) -> Vec3 {

@@ -11,6 +11,6 @@ pub(crate) mod image_texture;
 pub(crate) mod noise_texture;
 pub(crate) mod solid_color;
 
-pub(crate) trait Texture: Sync {
+pub(crate) trait Texture: Send + Sync {
     fn value(&self, u: f32, v: f32, point: Vec3) -> Vec3;
 }

@@ -12,7 +12,7 @@ pub(crate) mod isotropic;
 pub(crate) mod lambertian;
 pub(crate) mod metal;
 
-pub(crate) trait Material: Sync {
+pub(crate) trait Material: Send + Sync {
     fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Vec3, Ray)>;
 
     fn emitted(&self, u: f32, v: f32, point: Vec3) -> Vec3;
