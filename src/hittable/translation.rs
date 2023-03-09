@@ -28,9 +28,7 @@ impl Hittable for Translation {
             ray.time(),
         );
 
-        let Some( mut hit_record) = self.hittable.hit(&moved_ray, time_min, time_max) else {
-            return None;
-        };
+        let mut hit_record = self.hittable.hit(&moved_ray, time_min, time_max)?;
 
         hit_record.point += self.displacement;
         hit_record.set_face_normal(&moved_ray, hit_record.normal);
@@ -39,9 +37,7 @@ impl Hittable for Translation {
     }
 
     fn bounding_box(&self, time_start: f32, time_end: f32) -> Option<Aabb> {
-        let Some(mut output_box) = self.hittable.bounding_box(time_start, time_end) else {
-            return None;
-        };
+        let mut output_box = self.hittable.bounding_box(time_start, time_end)?;
 
         output_box = Aabb::new(
             output_box.minimum() + self.displacement,

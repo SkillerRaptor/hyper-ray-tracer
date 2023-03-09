@@ -14,6 +14,7 @@ pub(crate) enum Scene {
     Earth,
     SimpleLight,
     Cornell,
+    CornellSmoke,
 }
 
 #[derive(Debug, Parser)]

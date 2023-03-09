@@ -7,6 +7,7 @@
 use crate::{aabb::Aabb, hit_record::HitRecord, ray::Ray};
 
 pub(crate) mod bvh_node;
+pub(crate) mod constant_medium;
 pub(crate) mod cuboid;
 pub(crate) mod list;
 pub(crate) mod moving_sphere;

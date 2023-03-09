@@ -8,6 +8,7 @@ use crate::{hit_record::HitRecord, math::Vec3, ray::Ray};
 
 pub(crate) mod dielectric;
 pub(crate) mod diffuse_light;
+pub(crate) mod isotropic;
 pub(crate) mod lambertian;
 pub(crate) mod metal;
 
