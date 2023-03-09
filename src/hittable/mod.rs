@@ -7,10 +7,13 @@
 use crate::{aabb::Aabb, hit_record::HitRecord, ray::Ray};
 
 pub(crate) mod bvh_node;
+pub(crate) mod cuboid;
 pub(crate) mod list;
 pub(crate) mod moving_sphere;
 pub(crate) mod rect;
+pub(crate) mod rotation;
 pub(crate) mod sphere;
+pub(crate) mod translation;
 
 pub(crate) trait Hittable: Sync {
     fn hit(&self, ray: &Ray, time_min: f32, time_max: f32) -> Option<HitRecord>;

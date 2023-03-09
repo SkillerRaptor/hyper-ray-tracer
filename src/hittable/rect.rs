@@ -40,8 +40,8 @@ impl<M: Material> Rect<M> {
         Self {
             plane,
             a0,
-            b0,
             a1,
+            b0,
             b1,
             k,
             material,
@@ -86,10 +86,20 @@ impl<M: Material> Hittable for Rect<M> {
     }
 
     fn bounding_box(&self, _time_start: f32, _time_end: f32) -> Option<Aabb> {
-        Some(Aabb::new(
-            Vec3::new(self.a0, self.b0, self.k - 0.0001),
-            Vec3::new(self.a1, self.b1, self.k + 0.0001),
-        ))
+        Some(match self.plane {
+            Plane::XY => Aabb::new(
+                Vec3::new(self.a0, self.b0, self.k - 0.0001),
+                Vec3::new(self.a1, self.b1, self.k + 0.0001),
+            ),
+            Plane::YZ => Aabb::new(
+                Vec3::new(self.k - 0.0001, self.a0, self.b0),
+                Vec3::new(self.k + 0.0001, self.a1, self.b1),
+            ),
+            Plane::ZX => Aabb::new(
+                Vec3::new(self.a0, self.k - 0.0001, self.b0),
+                Vec3::new(self.a1, self.k + 0.0001, self.b1),
+            ),
+        })
     }
 
     fn count(&self) -> u32 {

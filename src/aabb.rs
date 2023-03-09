@@ -62,8 +62,16 @@ impl Aabb {
         Self::new(small, big)
     }
 
+    pub(crate) fn set_minimum(&mut self, minimum: Vec3) {
+        self.minimum = minimum;
+    }
+
     pub(crate) fn minimum(&self) -> Vec3 {
         self.minimum
+    }
+
+    pub(crate) fn set_maximum(&mut self, maximum: Vec3) {
+        self.maximum = maximum;
     }
 
     pub(crate) fn maximum(&self) -> Vec3 {

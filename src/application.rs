@@ -9,9 +9,12 @@ use crate::{
     camera::Camera,
     hittable::{
         bvh_node::BvhNode,
+        cuboid::Cuboid,
         moving_sphere::MovingSphere,
         rect::{Plane, Rect},
+        rotation::{Axis, Rotation},
         sphere::Sphere,
+        translation::Translation,
         Hittable,
     },
     materials::{
@@ -137,6 +140,14 @@ impl Application {
                 aperture = 0.0;
                 background = Vec3::new(0.0, 0.0, 0.0);
                 Self::generate_simple_light()
+            }
+            Scene::Cornell => {
+                look_from = Vec3::new(278.0, 278.0, -800.0);
+                look_at = Vec3::new(278.0, 278.0, 0.0);
+                fov = 40.0;
+                aperture = 0.0;
+                background = Vec3::new(0.0, 0.0, 0.0);
+                Self::generate_cornell_box()
             }
         };
 
@@ -466,6 +477,90 @@ impl Application {
             -2.0,
             diffuse_light,
         )));
+
+        Box::new(BvhNode::new(objects, 0.0, 1.0))
+    }
+
+    fn generate_cornell_box() -> Box<dyn Hittable> {
+        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
+
+        let red = Lambertian::new(SolidColor::new(Vec3::new(0.65, 0.05, 0.05)));
+        let white = Lambertian::new(SolidColor::new(Vec3::new(0.73, 0.73, 0.73)));
+        let green = Lambertian::new(SolidColor::new(Vec3::new(0.12, 0.45, 0.15)));
+        let light = DiffuseLight::new(SolidColor::new(Vec3::new(15.0, 15.0, 15.0)));
+
+        objects.push(Box::new(Rect::new(
+            Plane::YZ,
+            0.0,
+            555.0,
+            0.0,
+            555.0,
+            555.0,
+            green,
+        )));
+        objects.push(Box::new(Rect::new(
+            Plane::YZ,
+            0.0,
+            555.0,
+            0.0,
+            555.0,
+            0.0,
+            red,
+        )));
+        objects.push(Box::new(Rect::new(
+            Plane::ZX,
+            213.0,
+            343.0,
+            227.0,
+            332.0,
+            554.0,
+            light,
+        )));
+        objects.push(Box::new(Rect::new(
+            Plane::ZX,
+            0.0,
+            555.0,
+            0.0,
+            555.0,
+            0.0,
+            white.clone(),
+        )));
+        objects.push(Box::new(Rect::new(
+            Plane::ZX,
+            0.0,
+            555.0,
+            0.0,
+            555.0,
+            555.0,
+            white.clone(),
+        )));
+        objects.push(Box::new(Rect::new(
+            Plane::XY,
+            0.0,
+            555.0,
+            0.0,
+            555.0,
+            555.0,
+            white.clone(),
+        )));
+
+        let mut cuboid_1: Box<dyn Hittable> = Box::new(Cuboid::new(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(165.0, 330.0, 165.0),
+            white.clone(),
+        ));
+        cuboid_1 = Box::new(Rotation::new(Axis::Y, cuboid_1, 15.0));
+        cuboid_1 = Box::new(Translation::new(cuboid_1, Vec3::new(265.0, 0.0, 295.0)));
+        objects.push(cuboid_1);
+
+        let mut cuboid_2: Box<dyn Hittable> = Box::new(Cuboid::new(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(165.0, 165.0, 165.0),
+            white.clone(),
+        ));
+        cuboid_2 = Box::new(Rotation::new(Axis::Y, cuboid_2, -18.0));
+        cuboid_2 = Box::new(Translation::new(cuboid_2, Vec3::new(130.0, 0.0, 65.0)));
+        objects.push(cuboid_2);
 
         Box::new(BvhNode::new(objects, 0.0, 1.0))
     }

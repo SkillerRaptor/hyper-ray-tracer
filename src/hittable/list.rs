@@ -11,7 +11,6 @@ pub(crate) struct List {
 }
 
 impl List {
-    #[allow(dead_code)]
     pub(crate) fn new(objects: Vec<Box<dyn Hittable>>) -> Self {
         Self { objects }
     }
