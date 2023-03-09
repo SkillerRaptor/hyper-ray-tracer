@@ -1,0 +1,82 @@
+name: Cargo Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: Hyper Ray Tracer
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - stable
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Update System
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt update -qq
+          sudo apt install -y \
+            cmake \
+            extra-cmake-modules \
+            libwayland-dev \
+            libxinerama-dev \
+            libxkbcommon-dev \
+            wayland-protocols \
+            xorg-dev  \
+
+      - name: Install Rust-Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          default: true
+          profile: default
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Cargo Build Debug
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose --workspace
+
+      - name: Cargo Build Release
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose --workspace --release
+
+      - name: Cargo Build Production
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose --workspace --profile production
+
+      - name: Cargo Formatter
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: Cargo Check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all-targets
+
+      - name: Cargo Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --verbose --workspace
