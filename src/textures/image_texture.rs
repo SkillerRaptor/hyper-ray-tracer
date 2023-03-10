@@ -56,7 +56,7 @@ impl Texture for ImageTexture {
         let offset = (j * self.bytes_per_scanline + i * self.components as u32) as usize;
 
         Vec3::new(
-            color_scale * self.data[offset + 0] as f32,
+            color_scale * self.data[offset] as f32,
             color_scale * self.data[offset + 1] as f32,
             color_scale * self.data[offset + 2] as f32,
         )

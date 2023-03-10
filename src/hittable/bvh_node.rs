@@ -81,7 +81,7 @@ impl BvhNode {
     }
 
     fn axis_range(
-        objects: &Vec<Box<dyn Hittable>>,
+        objects: &[Box<dyn Hittable>],
         time_start: f32,
         time_end: f32,
         axis: usize,

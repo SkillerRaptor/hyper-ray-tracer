@@ -257,9 +257,7 @@ impl Application {
                 delta_time.as_secs_f32(),
             ));
 
-            if self.tile_counter.load(Ordering::SeqCst)
-                == (self.tile_x_count * self.tile_y_count) as u32
-            {
+            if self.tile_counter.load(Ordering::SeqCst) == self.tile_x_count * self.tile_y_count {
                 let duration = self.start_time.elapsed();
 
                 let seconds = duration.as_secs() % 60;
@@ -284,8 +282,9 @@ impl Application {
             self.process_events();
 
             let receive = self.rx.try_recv();
-            match receive {
-                Ok(tile) => unsafe {
+
+            if let Ok(tile) = receive {
+                unsafe {
                     let data = std::mem::transmute(tile.pixels.as_ptr());
 
                     let x_offset = tile.x * self.tile_size;
@@ -303,8 +302,7 @@ impl Application {
                         gl::FLOAT,
                         data,
                     );
-                },
-                Err(_) => {}
+                }
             }
 
             unsafe {
@@ -313,12 +311,12 @@ impl Application {
                 gl::BlitFramebuffer(
                     0,
                     0,
-                    self.texture_size.x as i32,
-                    self.texture_size.y as i32,
+                    self.texture_size.x,
+                    self.texture_size.y,
                     0,
                     0,
-                    self.window_size.x as i32,
-                    self.window_size.y as i32,
+                    self.window_size.x,
+                    self.window_size.y,
                     gl::COLOR_BUFFER_BIT,
                     gl::NEAREST,
                 )
@@ -447,7 +445,7 @@ impl Application {
                             let v = (y as f32 + rand.gen::<f32>()) / (height as f32 - 1.0);
 
                             let ray = camera.get_ray(u, v);
-                            pixel_color += Self::ray_color(&ray, background, &world, depth);
+                            pixel_color += Self::ray_color(&ray, background, &**world, depth);
                         }
 
                         pixel_color.x = (pixel_color.x * scale).sqrt();
@@ -476,7 +474,7 @@ impl Application {
         }
     }
 
-    fn ray_color(ray: &Ray, background: Vec3, world: &Box<dyn Hittable>, depth: u32) -> Vec3 {
+    fn ray_color(ray: &Ray, background: Vec3, world: &dyn Hittable, depth: u32) -> Vec3 {
         if depth == 0 {
             return Vec3::new(0.0, 0.0, 0.0);
         }
@@ -713,7 +711,7 @@ impl Application {
         let mut cuboid_2: Box<dyn Hittable> = Box::new(Cuboid::new(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(165.0, 165.0, 165.0),
-            white.clone(),
+            white,
         ));
         cuboid_2 = Box::new(Rotation::new(Axis::Y, cuboid_2, -18.0));
         cuboid_2 = Box::new(Translation::new(cuboid_2, Vec3::new(130.0, 0.0, 65.0)));
@@ -802,7 +800,7 @@ impl Application {
         let mut cuboid_2: Box<dyn Hittable> = Box::new(Cuboid::new(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(165.0, 165.0, 165.0),
-            white.clone(),
+            white,
         ));
         cuboid_2 = Box::new(Rotation::new(Axis::Y, cuboid_2, -18.0));
         cuboid_2 = Box::new(Translation::new(cuboid_2, Vec3::new(130.0, 0.0, 65.0)));

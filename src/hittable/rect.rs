@@ -80,7 +80,7 @@ impl<M: Material> Hittable for Rect<M> {
 
         let mut outward_normal = Vec3::new(0.0, 0.0, 0.0);
         outward_normal[k_axis] = 1.0;
-        hit_record.set_face_normal(&ray, outward_normal);
+        hit_record.set_face_normal(ray, outward_normal);
 
         Some(hit_record)
     }

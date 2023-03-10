@@ -28,64 +28,62 @@ pub(crate) struct Cuboid<M: Clone + Material> {
 
 impl<M: Clone + Material + 'static> Cuboid<M> {
     pub(crate) fn new(box_min: Vec3, box_max: Vec3, material: M) -> Self {
-        let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
-
-        objects.push(Box::new(Rect::new(
-            Plane::XY,
-            box_min.x,
-            box_max.x,
-            box_min.y,
-            box_max.y,
-            box_max.z,
-            material.clone(),
-        )));
-        objects.push(Box::new(Rect::new(
-            Plane::XY,
-            box_min.x,
-            box_max.x,
-            box_min.y,
-            box_max.y,
-            box_min.z,
-            material.clone(),
-        )));
-
-        objects.push(Box::new(Rect::new(
-            Plane::ZX,
-            box_min.z,
-            box_max.z,
-            box_min.x,
-            box_max.x,
-            box_max.y,
-            material.clone(),
-        )));
-        objects.push(Box::new(Rect::new(
-            Plane::ZX,
-            box_min.z,
-            box_max.z,
-            box_min.x,
-            box_max.x,
-            box_min.y,
-            material.clone(),
-        )));
-
-        objects.push(Box::new(Rect::new(
-            Plane::YZ,
-            box_min.y,
-            box_max.y,
-            box_min.z,
-            box_max.z,
-            box_max.x,
-            material.clone(),
-        )));
-        objects.push(Box::new(Rect::new(
-            Plane::YZ,
-            box_min.y,
-            box_max.y,
-            box_min.z,
-            box_max.z,
-            box_min.x,
-            material,
-        )));
+        let objects: Vec<Box<dyn Hittable>> = vec![
+            Box::new(Rect::new(
+                Plane::XY,
+                box_min.x,
+                box_max.x,
+                box_min.y,
+                box_max.y,
+                box_max.z,
+                material.clone(),
+            )),
+            Box::new(Rect::new(
+                Plane::XY,
+                box_min.x,
+                box_max.x,
+                box_min.y,
+                box_max.y,
+                box_min.z,
+                material.clone(),
+            )),
+            Box::new(Rect::new(
+                Plane::ZX,
+                box_min.z,
+                box_max.z,
+                box_min.x,
+                box_max.x,
+                box_max.y,
+                material.clone(),
+            )),
+            Box::new(Rect::new(
+                Plane::ZX,
+                box_min.z,
+                box_max.z,
+                box_min.x,
+                box_max.x,
+                box_min.y,
+                material.clone(),
+            )),
+            Box::new(Rect::new(
+                Plane::YZ,
+                box_min.y,
+                box_max.y,
+                box_min.z,
+                box_max.z,
+                box_max.x,
+                material.clone(),
+            )),
+            Box::new(Rect::new(
+                Plane::YZ,
+                box_min.y,
+                box_max.y,
+                box_min.z,
+                box_max.z,
+                box_min.x,
+                material,
+            )),
+        ];
 
         let sides = List::new(objects);
 

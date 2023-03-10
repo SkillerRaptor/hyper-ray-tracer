@@ -69,7 +69,7 @@ impl<M: Material> Hittable for Sphere<M> {
             material: &self.material,
         };
 
-        hit_record.set_face_normal(&ray, outward_normal);
+        hit_record.set_face_normal(ray, outward_normal);
 
         Some(hit_record)
     }
