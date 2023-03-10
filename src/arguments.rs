@@ -37,6 +37,10 @@ pub(crate) struct Arguments {
     #[arg(long, default_value_t = 10)]
     pub(crate) depth: u32,
 
+    /// Tile size
+    #[arg(long, default_value_t = 80)]
+    pub(crate) tile_size: u32,
+
     /// Scene
     #[arg(long, value_enum, default_value_t = Scene::Random)]
     pub(crate) scene: Scene,

@@ -30,17 +30,26 @@ use crate::{
 };
 
 use cgmath::{ElementWise, InnerSpace, Vector2, Vector4};
-use gcd::Gcd;
 use glfw::{Action, Context, Glfw, Key, Window, WindowEvent};
 use rand::Rng;
 use std::{
     sync::{
         atomic::{AtomicU32, Ordering},
         mpsc::Receiver,
-        Arc, Mutex,
+        Arc,
     },
     time::Instant,
 };
+use tokio::{sync::mpsc, task::JoinHandle};
+
+#[derive(Clone, Debug)]
+struct Tile {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    pixels: Vec<Vector4<f32>>,
+}
 
 pub(crate) struct Application {
     glfw: Glfw,
@@ -51,16 +60,23 @@ pub(crate) struct Application {
     screen_texture: u32,
     screen_framebuffer: u32,
 
-    camera: Camera,
-    world: Arc<Box<dyn Hittable>>,
-
     background: Vec3,
     samples: u32,
     depth: u32,
 
-    pixels: Arc<Mutex<Vec<Vector4<f32>>>>,
-    task_counter: Arc<AtomicU32>,
+    camera: Camera,
+    world: Arc<Box<dyn Hittable>>,
+
     start_time: Instant,
+    tile_size: u32,
+    tile_x_count: u32,
+    tile_y_count: u32,
+    tile_counter: Arc<AtomicU32>,
+
+    tx: mpsc::Sender<Tile>,
+    rx: mpsc::Receiver<Tile>,
+
+    tasks: Vec<JoinHandle<()>>,
 }
 
 impl Application {
@@ -194,6 +210,8 @@ impl Application {
             current_window_size.1,
         );
 
+        let (tx, rx) = mpsc::channel(32);
+
         let mut application = Self {
             glfw,
             window,
@@ -202,14 +220,23 @@ impl Application {
             texture_size: Vector2::new(0, 0),
             screen_texture,
             screen_framebuffer,
-            pixels: Arc::new(Mutex::new(Vec::new())),
-            camera,
-            world: Arc::new(world),
             background,
             samples: arguments.samples,
             depth: arguments.depth,
-            task_counter: Arc::new(AtomicU32::new(0)),
+
+            camera,
+            world: Arc::new(world),
+
             start_time: Instant::now(),
+            tile_size: arguments.tile_size,
+            tile_x_count: 0,
+            tile_y_count: 0,
+            tile_counter: Arc::default(),
+
+            tx,
+            rx,
+
+            tasks: Vec::new(),
         };
 
         application.handle_resize(current_window_size.0, current_window_size.1);
@@ -230,8 +257,8 @@ impl Application {
                 delta_time.as_secs_f32(),
             ));
 
-            if self.task_counter.load(Ordering::SeqCst)
-                == (self.texture_size.x * self.texture_size.y) as u32
+            if self.tile_counter.load(Ordering::SeqCst)
+                == (self.tile_x_count * self.tile_y_count) as u32
             {
                 let duration = self.start_time.elapsed();
 
@@ -251,26 +278,33 @@ impl Application {
                 log::info!("  Depth: {}", self.depth);
                 log::info!("  Objects: {}", self.world.count());
 
-                self.task_counter.store(0, Ordering::SeqCst);
+                self.tile_counter.store(0, Ordering::SeqCst);
             }
 
             self.process_events();
 
-            unsafe {
-                let data = std::mem::transmute(self.pixels.lock().unwrap().as_ptr());
+            let receive = self.rx.try_recv();
+            match receive {
+                Ok(tile) => unsafe {
+                    let data = std::mem::transmute(tile.pixels.as_ptr());
 
-                gl::BindTexture(gl::TEXTURE_2D, self.screen_texture);
-                gl::TexImage2D(
-                    gl::TEXTURE_2D,
-                    0,
-                    gl::RGBA32F as i32,
-                    self.texture_size.x,
-                    self.texture_size.y,
-                    0,
-                    gl::RGBA,
-                    gl::FLOAT,
-                    data,
-                );
+                    let x_offset = tile.x * self.tile_size;
+                    let y_offset = tile.y * self.tile_size;
+
+                    gl::BindTexture(gl::TEXTURE_2D, self.screen_texture);
+                    gl::TexSubImage2D(
+                        gl::TEXTURE_2D,
+                        0,
+                        x_offset as i32,
+                        y_offset as i32,
+                        tile.width as i32,
+                        tile.height as i32,
+                        gl::RGBA,
+                        gl::FLOAT,
+                        data,
+                    );
+                },
+                Err(_) => {}
             }
 
             unsafe {
@@ -279,12 +313,12 @@ impl Application {
                 gl::BlitFramebuffer(
                     0,
                     0,
-                    self.texture_size.x,
-                    self.texture_size.y,
+                    self.texture_size.x as i32,
+                    self.texture_size.y as i32,
                     0,
                     0,
-                    self.window_size.x,
-                    self.window_size.y,
+                    self.window_size.x as i32,
+                    self.window_size.y as i32,
                     gl::COLOR_BUFFER_BIT,
                     gl::NEAREST,
                 )
@@ -292,6 +326,10 @@ impl Application {
 
             self.window.swap_buffers();
             self.glfw.poll_events();
+        }
+
+        for task in &self.tasks {
+            task.abort();
         }
     }
 
@@ -324,10 +362,29 @@ impl Application {
 
         self.camera.resize(width, height);
 
-        self.pixels.lock().unwrap().resize(
-            (self.texture_size.x * self.texture_size.y) as usize,
-            Vector4::new(0.0, 0.0, 0.0, 0.0),
-        );
+        self.tile_x_count = (self.texture_size.x as f32 / self.tile_size as f32).ceil() as u32;
+        self.tile_y_count = (self.texture_size.y as f32 / self.tile_size as f32).ceil() as u32;
+
+        unsafe {
+            let pixels = vec![
+                Vector4::new(0.0, 0.0, 0.0, 0.0);
+                (self.texture_size.x * self.texture_size.y) as usize
+            ];
+            let data = std::mem::transmute(pixels.as_ptr());
+
+            gl::BindTexture(gl::TEXTURE_2D, self.screen_texture);
+            gl::TexImage2D(
+                gl::TEXTURE_2D,
+                0,
+                gl::RGBA32F as i32,
+                self.texture_size.x,
+                self.texture_size.y,
+                0,
+                gl::RGBA,
+                gl::FLOAT,
+                data,
+            );
+        }
 
         log::info!("Rendering image...");
 
@@ -340,32 +397,49 @@ impl Application {
         let height = self.texture_size.y as usize;
         let sample_count = self.samples;
         let background = self.background;
-        let scale = 1.0 / sample_count as f32;
         let depth = self.depth;
+        let tile_size = self.tile_size;
+        let tile_x_count = self.tile_x_count;
+        let tile_y_count = self.tile_y_count;
 
-        let gcd = width.gcd(height);
-        let smallest_width = width / gcd;
-        let smallest_height = height / gcd;
+        let scale = 1.0 / sample_count as f32;
+        for i in 0..(self.tile_x_count * self.tile_y_count) {
+            let x = i % self.tile_x_count;
+            let y = i / self.tile_x_count;
 
-        for i in 0..(smallest_width * smallest_height) {
-            let pixels = self.pixels.clone();
+            let local_x = x * tile_size;
+            let local_y = y * tile_size;
+            let tx = self.tx.clone();
             let camera = self.camera.clone();
             let world = self.world.clone();
-            let task_counter = self.task_counter.clone();
+            let tile_counter = self.tile_counter.clone();
 
-            let x = i % smallest_width as usize;
-            let y = i / smallest_width as usize;
+            self.tasks.push(tokio::spawn(async move {
+                let tile_width = if width as u32 % tile_size != 0 && x == (tile_x_count - 1) {
+                    (((width as f32 / tile_size as f32)
+                        - (width as f32 / tile_size as f32).floor())
+                        * tile_size as f32) as u32
+                } else {
+                    tile_size
+                };
 
-            tokio::spawn(async move {
-                let local_x = x * gcd;
-                let local_y = y * gcd;
+                let tile_height = if height as u32 % tile_size != 0 && y == (tile_y_count - 1) {
+                    (((height as f32 / tile_size as f32)
+                        - (height as f32 / tile_size as f32).floor())
+                        * tile_size as f32) as u32
+                } else {
+                    tile_size
+                };
 
                 let mut local_pixels: Vec<Vector4<f32>> =
-                    vec![Vector4::new(0.0, 0.0, 0.0, 0.0); gcd * gcd];
-
-                for y in local_y..(local_y + gcd) {
+                    vec![Vector4::new(0.0, 0.0, 0.0, 0.0); (tile_width * tile_height) as usize];
+                // TODO: Handle edge cases of screen which are not / 40
+                {
                     let mut rand = rand::thread_rng();
-                    for x in local_x..(local_x + gcd) {
+                    for i in 0..(tile_width * tile_height) {
+                        let x = (i % tile_width) + local_x;
+                        let y = (i / tile_width) + local_y;
+
                         let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
 
                         for _ in 0..sample_count {
@@ -380,23 +454,25 @@ impl Application {
                         pixel_color.y = (pixel_color.y * scale).sqrt();
                         pixel_color.z = (pixel_color.z * scale).sqrt();
 
-                        local_pixels[(x - local_x) + gcd * (y - local_y)] =
+                        local_pixels[((x - local_x) + tile_width * (y - local_y)) as usize] =
                             Vector4::new(pixel_color.x, pixel_color.y, pixel_color.z, 1.0);
                     }
                 }
 
-                let position_to_index = |x: usize, y: usize| -> usize { x + width * y };
+                // TODO: Handle different sizes
+                let tile = Tile {
+                    x,
+                    y,
+                    width: tile_width,
+                    height: tile_height,
+                    pixels: local_pixels,
+                };
 
-                let mut pixels_buffer = pixels.lock().unwrap();
-                for (i, pixel) in local_pixels.iter().enumerate() {
-                    let x = i % gcd as usize;
-                    let y = i / gcd as usize;
-                    pixels_buffer[position_to_index(local_x + x, local_y + y)] = *pixel;
-                }
+                let counter = tile_counter.load(Ordering::SeqCst);
+                tile_counter.store(counter + 1, Ordering::SeqCst);
 
-                let current_task = task_counter.load(Ordering::SeqCst);
-                task_counter.store(current_task + (gcd * gcd) as u32, Ordering::SeqCst);
-            });
+                tx.send(tile).await.unwrap();
+            }));
         }
     }
 
